@@ -1,0 +1,120 @@
+from Utilities import *
+from Network import *
+
+from ValueNetworks import *
+from PolicyNetworks import *
+
+NETWORK_CONFIGS = {
+    'mlp': {
+        'mini'  : [32, 16],
+        'small' : [128, 64],
+        'medium' : [256, 128, 64],
+        'large' : [512, 256, 128, 64],
+    },
+    'cnn' : {           # not yet tested, these are sample architectures
+        'small' : {
+            'conv_layers' : [(16, 3, 1, 1), (32, 3, 1, 1)],  # (out_channels, kernel_size, stride, padding)
+            'fc_layers' : [128],
+        },
+        'medium' : {
+            'conv_layers' : [(16, 3, 1, 1), (32, 3, 1, 1), (64, 3, 1, 1)],  # (out_channels, kernel_size, stride, padding)
+            'fc_layers' : [128],
+        },
+        'large' : {
+            'conv_layers' : [(16, 3, 1, 1), (32, 3, 1, 1), (64, 3, 1, 1), (128, 3, 1, 1)],  # (out_channels, kernel_size, stride, padding)
+            'fc_layers' : [256, 128],
+        },
+    }
+}
+
+def create_value_network(input_size: int, config: dict[str, Any])->ValueNetwork:
+    """
+    Creates and returns a Value Network with the architecture that was specified in the configuration file.
+    Args:
+        input_size (int): observation dim
+        config (dict[str, Any]): Configuration dictionary, as loaded from the configuration file
+
+    Returns:
+        ValueNetwork: Any derivation of Value Network, currently either ValueMLP or ValueCNN
+    """
+
+    if config['network_type'] == 'mlp':
+        return ValueMLP(input_size=input_size,
+                        hidden_layers=NETWORK_CONFIGS[config['network_type']][config['value_net_size']],
+                        name=config['value_net_size'])
+    
+    elif config['network_type'] == 'cnn':
+        return ValueCNN()
+    
+def create_policy_network(input_size: int, output_size: int, config: dict[str, Any])->PolicyNetwork:
+    """Creates and returns a Policy Network with the architecture that was specified in the configuration file
+
+    Args:
+        input_size (int): Observation dim
+        output_size (int): Action Space di
+        config (dict[str, Any]): Configuration dictionary, as loaded from the configuration file
+
+    Returns:
+        PolicyNetwork: Any derivation of Policy Network depending on the Policy Type (in configuration file)\\
+        Currently either PolicyTypeMLP or PolicyTypeCNN, for PolicyType: Logits, GNN, GNN_K, GNN_N
+    """
+
+    if config['network_type'] == 'mlp':
+        if config['policy_type'] == 'logits':
+            return LogitsMLP(input_size=input_size,
+                             output_size=output_size,
+                             hidden_layers=NETWORK_CONFIGS[config['network_type']][config['policy_net_size']],
+                             name=config['policy_net_size'])
+        
+        elif config['policy_type'] == 'GNN':
+
+            # if static :
+            #   do the intervals here
+            #   do the mapping here
+            # if in the future I decide to make intervals and mapping dynamic, the network will predict parameters that correspond to it
+            # and the mapping will be done in each forward call
+            
+            interval_fn = resolve_interval_fn[config['intervals']['fn_name']]
+            mapping_fn = resolve_mapping_fn[config['mapping']['fn_name']]
+
+            intervals = interval_fn(**config['intervals']['kwargs'])
+            mapping = mapping_fn(**config['mapping']['kwargs'])
+
+            return GNN_MLP(input_size=input_size,
+                           hidden_layers=NETWORK_CONFIGS[config['network_type']][config['policy_net_size']],
+                           name=config['policy_net_size'],
+                           intervals=intervals,
+                           mapping=mapping)
+
+        elif config['policy_type'] == 'GNN_K':
+            # if static :
+            #   do the intervals here
+            #   do the mapping here
+            # if in the future I decide to make intervals and mapping dynamic, the network will predict parameters that correspond to it
+            # and the mapping will be done in each forward call
+            
+            interval_fn = resolve_interval_fn[config['intervals']['fn_name']]
+            mapping_fn = resolve_mapping_fn[config['mapping']['fn_name']]
+
+            intervals = interval_fn(**config['intervals']['kwargs'])
+            mapping = mapping_fn(**config['mapping']['kwargs'])
+
+            return GNN_K_MLP(input_size=input_size,
+                           hidden_layers=NETWORK_CONFIGS[config['network_type']][config['policy_net_size']],
+                           name=config['policy_net_size'],
+                           intervals=intervals,
+                           mapping=mapping,
+                           K=config['K_num_components'])
+        elif config['policy_type'] == 'GNN_N':
+            return GNN_N_MLP()
+        
+    elif config['policy_type'] == 'cnn':
+
+        if config['policy_type'] == 'logits':
+            return LogitsCNN()
+        elif config['policy_type'] == 'GNN':
+            return GNN_CNN()
+        elif config['policy_type'] == 'GNN_K':
+            return GNN_K_CNN()
+        elif config['policy_type'] == 'GNN_N':
+            return GNN_N_CNN()

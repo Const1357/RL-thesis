@@ -1,0 +1,39 @@
+# cartpole_GNN_N.yaml
+experiment_name: cartpole_GNN_N_mlp
+
+# env: CartPole-v1
+# render: False
+
+# network_type: mlp
+# policy_type: GNN_N
+# value_net_size: mini
+# policy_net_size: small
+# clip_grad: 0
+
+
+# value_clip: 0.1
+# policy_clip: 0.2
+# value_lr: 0.001
+# policy_lr: 0.0003
+# gamma: 0.99
+# gae_lambda: 0.97
+# max_KL: 0.005
+# entropy_coef: 0.0
+
+# temp_scheduler_kwargs:
+#   initial_temp: 1.0
+#   min_temp: 0.25
+#   max_temp: 2.0
+#   window_size: 16
+#   patience: 4
+#   plateau_threshold: 0.01
+#   bump_factor: 1.5
+#   decay_rate: 0.999
+#   frozen: true
+
+# batch_size: 64
+# max_epochs: 4
+# num_episodes: 150
+# max_episode_length: 500
+# rollout_length: 2048
+# num_trajectories: 8

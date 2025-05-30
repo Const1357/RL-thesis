@@ -1,0 +1,32 @@
+# cartpole_GNN_K.yaml
+experiment_name: cartpole_GNN_K_mlp
+
+K_num_components: 3
+
+network_type: mlp
+policy_type: GNN_K
+
+intervals:
+  fn_name: trivial
+  kwargs:
+    xmin: -1
+    xmax: 1
+    action_space_size: 2
+
+mapping:
+  fn_name: trivial
+  kwargs:
+    action_space_size: 2
+
+# overwrites common
+temp_scheduler_kwargs:
+  initial_temp: 0.5
+  min_temp: 0.1
+  max_temp: 2.0
+  window_size: 16
+  patience: 4
+  plateau_threshold: 0.01
+  reward_threshold: 400
+  bump_factor: 1.25
+  decay_rate: 0.99
+  frozen: true
