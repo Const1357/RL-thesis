@@ -1,8 +1,119 @@
 from Utilities import *
+from collections import deque
+from scipy.stats import linregress
 
-# TODO: refine ideas behind scheduler and more tests for its optimal configuration
+# TODO: change temp_scheduler_kwargs and run simple experiments
 
-class TemperatureScheduler():
+class TemperatureScheduler:
+
+    def __init__(self,
+                 temperature_tensor: torch.Tensor,
+                 start_temp: float = 1.0,
+                 min_temp: float = 0.05,
+                 max_temp: float = 2.0,
+                 decay_type: str = 'linear',
+                 e_decay_rate: float = 0.98,
+                 l_num_steps: int = 150,
+                 accept_threshold: float = 400,
+                 slope_threshold: float = 0.01,
+
+                 window_size: int = 20,
+                 plateau_boost: float = 1.2,
+                 suppress_factor = 0.8,
+
+                 frozen = False
+                 ):
+        
+        self.temp = start_temp
+        self.temperature_tensor = temperature_tensor
+        self.temperature_tensor.fill_(start_temp)
+
+        self.start_temp = start_temp
+        self.min_temp = min_temp
+        self.max_temp = max_temp
+
+        self.decay_type = decay_type
+        self.e_decay_rate = e_decay_rate
+        self.l_num_steps = l_num_steps
+
+        self.accept_threshold = accept_threshold
+        self.slope_threshold = slope_threshold
+        self.window_size = window_size
+
+        self.plateau_boost = plateau_boost
+        self.suppress_factor = suppress_factor
+
+        self.past_rewards = deque(maxlen=self.window_size)
+
+        self.l_decay = (start_temp - min_temp)/l_num_steps
+
+        self.frozen = frozen
+
+        self.current_step = 0
+
+
+    def detect_plateau(self):
+        if len(self.past_rewards) < self.window_size:
+            return False
+        rewards = np.array(self.past_rewards)
+        x = np.arange(len(rewards))
+
+        regr = linregress(x, rewards)
+        slope = regr.slope
+        pvalue = regr.pvalue
+
+        norm_slope = slope / (rewards.mean() + tol)
+
+        return norm_slope < self.slope_threshold and pvalue > 0.05
+        
+
+    def accept(self):
+        if len(self.past_rewards) < self.window_size:
+            return False
+        return np.mean(self.past_rewards) > self.accept_threshold
+
+    def step(self, current_reward):
+        self.current_step += 1
+        
+        if self.frozen:
+            return
+
+        self.past_rewards.append(current_reward)
+
+        if self.decay_type == 'linear':
+            self.l_decay = (self.temp - self.min_temp)/(self.l_num_steps - self.current_step)
+            self.temp -= self.l_decay
+        elif self.decay_type == 'exponential':
+            self.temp *= self.e_decay_rate
+
+        if self.accept():
+            self.temp *= self.suppress_factor
+            print(f"[TempScheduler] Mean window reward is over the threshold. Decreasing temp to {np.clip(self.temp, self.min_temp, self.max_temp)}.")
+
+        elif self.detect_plateau():
+            self.temp *= self.plateau_boost
+            # flushes the past rewards to wait another window_size before increasing again
+            self.past_rewards.clear()
+            print(f"[TempScheduler] Plateau or negative slope detected. Increasing temp to {np.clip(self.temp, self.min_temp, self.max_temp)}.")
+
+        self.update()
+
+    def update(self):
+        self.temp = np.clip(self.temp, self.min_temp, self.max_temp)
+        self.temperature_tensor.fill_(self.temp)
+
+    def freeze(self):
+        self.frozen = True
+
+    def unfreeze(self):
+        self.frozen = False
+
+    def get(self):
+        return self.temperature_tensor.item()
+
+
+
+class TemperatureScheduler_old():
 
     def __init__(self,
                  temperature_tensor: torch.Tensor,

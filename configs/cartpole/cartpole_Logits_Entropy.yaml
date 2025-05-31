@@ -1,4 +1,4 @@
-# cartpole_Entropy.yaml
+# cartpole_Logits_Entropy.yaml
 experiment_name: cartpole_logits_Entropy_mlp
 
 network_type: mlp

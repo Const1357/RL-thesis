@@ -1,20 +1,8 @@
-# cartpole_GNN.yaml
-experiment_name: cartpole_GNN_mlp
+# cartpole_Logits_Scheduler.yaml
+experiment_name: cartpole_logits_scheduler_mlp
 
 network_type: mlp
-policy_type: GNN
-
-intervals:
-  fn_name: trivial
-  kwargs:
-    xmin: -1
-    xmax: 1
-    action_space_size: 2
-
-mapping:
-  fn_name: trivial
-  kwargs:
-    action_space_size: 2
+policy_type: logits
 
 temp_scheduler_kwargs:
   start_temp: 2.0

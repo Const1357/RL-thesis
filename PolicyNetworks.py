@@ -55,9 +55,8 @@ class GNN_MLP(PolicyNetwork):
         self.register_buffer("intervals", torch.tensor(intervals, dtype=torch.float32, device=device).unsqueeze_(0).unsqueeze_(0))   # [1,1,N,2] to be transformed to [B,E,N,2]
         self.register_buffer("mapping", torch.tensor(mapping, dtype=torch.long, device=device))          # (N)
 
-        self.xmin = min(intervals, key=lambda x : x[0])     # leftmost in the interval
-        self.xmax = max(intervals, key=lambda x : x[1])     # rightmost in the interval
-
+        self.xmin = min(intervals, key=lambda x : x[0])[0]     # leftmost in the interval
+        self.xmax = max(intervals, key=lambda x : x[1])[1]     # rightmost in the interval
 
         # Network that outputs 2 values: mean and std
         layers = []
@@ -76,6 +75,7 @@ class GNN_MLP(PolicyNetwork):
         out = self.network(observation)                 # [B, E, 2] -> 2= 0.μ, 1.σ
 
         mean = out[:,:,0].unsqueeze(-1).unsqueeze(2)    # [B, E, 1, 1]
+        mean[..., -1] = tanh_squash_to_interval(mean[..., -1], self.xmin+tol, self.xmax-tol)    # ensure mean is not outside of mapping area.
         std = out[:,:,1].unsqueeze(-1).unsqueeze(2)     # [B, E, 1, 1]
         var = std**2*self.temperature                   # [B, E, 1, 1]
 
@@ -141,6 +141,7 @@ class GNN_K_MLP(PolicyNetwork):
         out = self.network(observation)                                 # [B, E, 3*K] -> 3*K= (0.μ, 1.σ, 2.w)*K
 
         means = out[:,:,:self.K].unsqueeze(2)                           # [B, E, 1, K]
+        means[..., -1] = tanh_squash_to_interval(means[..., -1], self.xmin, self.xmax)    # ensure mean is not outside of mapping area.
         stds = out[:,:,self.K:2*self.K].unsqueeze(2)                    # [B, E, 1, K]
         ws = out[:,:,2*self.K:3*self.K].unsqueeze(2)                    # [B, E, 1, K]
         ws = fn.softmax(ws, dim=3)                                      # softmax weights on K dim to ensure > 0 and sum to 1

@@ -21,14 +21,17 @@ max_KL: 0.005
 entropy_coef: 0.0
 
 temp_scheduler_kwargs:
-  initial_temp: 1.0
-  min_temp: 0.25
+  start_temp: 2.0
+  min_temp: 0.05
   max_temp: 2.0
-  window_size: 16
-  patience: 4
-  plateau_threshold: 0.01
-  bump_factor: 1.5
-  decay_rate: 0.999
+  decay_type: 'exponential'
+  l_num_steps: 150
+  e_decay_rate: 0.97
+  accept_threshold: 400
+  slope_threshold: 0.01
+  window_size: 20
+  plateau_boost: 1.2
+  suppress_factor: 0.85
   frozen: true
 
 batch_size: 1024

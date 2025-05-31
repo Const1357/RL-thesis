@@ -18,15 +18,16 @@ mapping:
   kwargs:
     action_space_size: 2
 
-# overwrites common
 temp_scheduler_kwargs:
-  initial_temp: 0.5
-  min_temp: 0.1
+  start_temp: 2.0
+  min_temp: 0.05
   max_temp: 2.0
-  window_size: 16
-  patience: 4
-  plateau_threshold: 0.01
-  reward_threshold: 400
-  bump_factor: 1.25
-  decay_rate: 0.99
-  frozen: true
+  decay_type: 'exponential'
+  l_num_steps: 150
+  e_decay_rate: 0.97
+  accept_threshold: 400
+  slope_threshold: 0.01
+  window_size: 20
+  plateau_boost: 1.2
+  suppress_factor: 0.85
+  frozen: false

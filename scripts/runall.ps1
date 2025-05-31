@@ -1,0 +1,7 @@
+.\scripts\gather5 ".\scripts\cartpole.ps1 -type logits"
+.\scripts\gather5 ".\scripts\cartpole.ps1 -type logits_scheduler"
+.\scripts\gather5 ".\scripts\cartpole.ps1 -type entropy"
+.\scripts\gather5 ".\scripts\cartpole.ps1 -type gnn"
+.\scripts\gather5 ".\scripts\cartpole.ps1 -type gnn_frozen"
+.\scripts\gather5 ".\scripts\cartpole.ps1 -type gnnk"
+.\scripts\gather5 ".\scripts\cartpole.ps1 -type gnnk_frozen"

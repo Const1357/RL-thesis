@@ -1,5 +1,5 @@
-# cartpole_GNN.yaml
-experiment_name: cartpole_GNN_mlp
+# cartpole_GNN_frozen.yaml
+experiment_name: cartpole_GNN_frozen_mlp
 
 network_type: mlp
 policy_type: GNN
@@ -28,4 +28,4 @@ temp_scheduler_kwargs:
   window_size: 20
   plateau_boost: 1.2
   suppress_factor: 0.85
-  frozen: false
+  frozen: true

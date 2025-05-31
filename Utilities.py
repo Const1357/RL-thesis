@@ -172,6 +172,10 @@ resolve_interval_fn = {
     # currently only trivial function. When I try other experiments I will try other functions
 }
 
+def tanh_squash_to_interval(x, x_from, x_to):
+    """Similar to torch.clamp but remains differentiable.
+    """
+    return 0.5*(x_from-x_to)*torch.tanh(x) + (x_from+x_to)*0.5
 
 #-------------------------------- Mapping Functions ----------------------------------
 
