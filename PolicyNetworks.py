@@ -120,8 +120,8 @@ class GNN_K_MLP(PolicyNetwork):
         self.register_buffer("intervals", torch.tensor(intervals, dtype=torch.float32, device=device).unsqueeze_(0).unsqueeze_(0))   # [1,1,N,2] to be transformed to [B,E,N,2]
         self.register_buffer("mapping", torch.tensor(mapping, dtype=torch.long, device=device))          # (N)
 
-        self.xmin = min(intervals, key=lambda x : x[0])     # leftmost in the interval
-        self.xmax = max(intervals, key=lambda x : x[1])     # rightmost in the interval
+        self.xmin = min(intervals, key=lambda x : x[0])[0]     # leftmost in the interval
+        self.xmax = max(intervals, key=lambda x : x[1])[1]     # rightmost in the interval
 
 
         # Network that outputs 2 values: mean and std
