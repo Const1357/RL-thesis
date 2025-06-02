@@ -7,13 +7,11 @@ class LogitsMLP(PolicyNetwork):
                  input_size,
                  output_size,
                  hidden_layers,
-                 name = '',
-                 temperature=1.0,):
+                 name = '',):
         super(LogitsMLP, self).__init__()
 
         self.input_size = input_size
         self.output_size = output_size
-        self.register_buffer('temperature', torch.tensor(temperature))
         self._name = name
 
         # Network that outputs output_size values
@@ -32,7 +30,7 @@ class LogitsMLP(PolicyNetwork):
             observation = observation.unsqueeze(0)
 
         logits = self.network(observation)
-        probs = torch.distributions.categorical.Categorical(logits = logits/self.temperature )
+        probs = Categorical(logits = logits)
 
         return probs, logits
     
@@ -43,13 +41,11 @@ class GNN_MLP(PolicyNetwork):
                  hidden_layers,
                  intervals, # list of size env.action_space.n (N) containing pairs (x_from, x_to)
                  mapping,   # list of size env.action_space.n (N) containing unique integers from 0 to N-1
-                 name = '',
-                 temperature=1.0,):
+                 name = '',):
         super(GNN_MLP, self).__init__()
 
         self.input_size = input_size
         self.output_size = 2            # mean, variance
-        self.register_buffer('temperature', torch.tensor(temperature))
         self._name = name
 
         self.register_buffer("intervals", torch.tensor(intervals, dtype=torch.float32, device=device).unsqueeze_(0).unsqueeze_(0))   # [1,1,N,2] to be transformed to [B,E,N,2]
@@ -77,7 +73,7 @@ class GNN_MLP(PolicyNetwork):
         mean = out[:,:,0].unsqueeze(-1).unsqueeze(2)    # [B, E, 1, 1]
         mean[..., -1] = tanh_squash_to_interval(mean[..., -1], self.xmin+tol, self.xmax-tol)    # ensure mean is not outside of mapping area.
         std = out[:,:,1].unsqueeze(-1).unsqueeze(2)     # [B, E, 1, 1]
-        var = std**2*self.temperature                   # [B, E, 1, 1]
+        var = std**2                                    # [B, E, 1, 1]
 
         intervals = self.intervals.expand(B, E, -1, -1) # [B, E, N, 2]
 
@@ -95,7 +91,7 @@ class GNN_MLP(PolicyNetwork):
         # Mapping
         probs = probs[:,:, self.mapping]                    # [B, E, N]
 
-        dist = torch.distributions.categorical.Categorical(probs=probs)
+        dist = Categorical(probs=probs)
 
         return dist, (mean.squeeze(-1).squeeze(-1), std.squeeze(-1).squeeze(-1))    # [B, E]
 
@@ -107,14 +103,12 @@ class GNN_K_MLP(PolicyNetwork):
                  intervals, # list of size env.action_space.n (N) containing pairs (x_from, x_to)
                  mapping,   # list of size env.action_space.n (N) containing unique integers from 0 to N-1
                  K,         # num components
-                 name = '',
-                 temperature=1.0,):
+                 name = '',):
         super(GNN_K_MLP, self).__init__()
 
         self.K = K
         self.input_size = input_size
         self.output_size = 3*K            # (weight, mean, variance) for each of K components
-        self.register_buffer('temperature', torch.tensor(temperature))
         self._name = name
 
         self.register_buffer("intervals", torch.tensor(intervals, dtype=torch.float32, device=device).unsqueeze_(0).unsqueeze_(0))   # [1,1,N,2] to be transformed to [B,E,N,2]
@@ -145,7 +139,7 @@ class GNN_K_MLP(PolicyNetwork):
         stds = out[:,:,self.K:2*self.K].unsqueeze(2)                    # [B, E, 1, K]
         ws = out[:,:,2*self.K:3*self.K].unsqueeze(2)                    # [B, E, 1, K]
         ws = fn.softmax(ws, dim=3)                                      # softmax weights on K dim to ensure > 0 and sum to 1
-        vars = stds**2*self.temperature                                 # [B, E, 1, K]
+        vars = stds**2                                                  # [B, E, 1, K]
 
         intervals = self.intervals.expand(B, E, -1, -1)                 # [B, E, N, 2] -> batch_dim, num_envs, act_dim, (x_from, x_to).shape=2
 
@@ -163,7 +157,7 @@ class GNN_K_MLP(PolicyNetwork):
         # Mapping
         probs = probs[:,:, self.mapping]                                    # [B, E, N]
 
-        dist = torch.distributions.categorical.Categorical(probs=probs)
+        dist = Categorical(probs=probs)
 
         return dist, (means.squeeze(2), stds.squeeze(2), ws.squeeze(2))     # [B, E, K]
 

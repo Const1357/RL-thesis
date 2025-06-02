@@ -1,4 +1,4 @@
-# cartpole_Logits.yaml
+# cartpole_logits_.yaml
 experiment_name: cartpole_logits_mlp
 
 network_type: mlp

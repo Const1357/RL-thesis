@@ -48,7 +48,7 @@ class Trainer():
             'entropy_curve' : [],       # stores tuples of (min, avg, max, std) -> main focus is avg
             'policy_loss_curve' : [],   
             'value_loss_curve' : [],    
-            'temperatures_curve' : [],
+            'noise_stds_curve' : [],
             'value_size' : value_size,
             'policy_size' : policy_size,
             'total_size' : (value_size + policy_size)
@@ -93,11 +93,12 @@ class Trainer():
 
             # actual rollout here
             while trajectory.ptr < rollout_steps:
-
+                
                 actions, logps, values, entropies = self.agent.actBatched(obs)  # forward pass through actor critic networks
 
                 # env step
-                next_obs, rewards, terminated, truncated, infos = self.env.step(actions.cpu().numpy())
+                next_obs, rewards, terminated, truncated, infos = self.env.step(actions.detach().cpu().numpy())
+
                 next_obs = torch.tensor(next_obs, dtype=torch.float32, device=device)
                 if next_obs.dim() == 2:
                     next_obs = next_obs.unsqueeze(0)    # adding batch dim
@@ -138,7 +139,6 @@ class Trainer():
                         ep_entropies[i].clear()
 
                 obs = next_obs
-
 
             # Bootstrapping last value
             last_values = self.agent.value_net(obs).detach()  # shape: [E]
@@ -188,15 +188,15 @@ class Trainer():
                 float(std(entropies))
             )
 
-            # log temperature
-            temp = self.agent.policy_temp_scheduler.get()
+            # log noise std
+            noise_std = self.agent.policy_noise_scheduler()
 
             # store for plotting later
             self.data['reward_curve'].append((min_r, avg_r, max_r, std_r))
             self.data['entropy_curve'].append((min_e, avg_e, max_e, std_e))
             self.data['policy_loss_curve'].append(policy_loss)
             self.data['value_loss_curve'].append(value_loss)
-            self.data['temperatures_curve'].append(temp)
+            self.data['noise_stds_curve'].append(noise_std)
 
             # console logging
             print(f"Episode {ep+1}/{self.num_episodes}:")
@@ -204,7 +204,7 @@ class Trainer():
             print(f" - Entropy min: {min_e:.3f} avg: <{avg_e:.3f}> max: {max_e:.3f} std: <{std_e:.3f}>")
             print(f" - EpisodeLength avg: {avg_len:.1f}")
             print(f" - PolicyLoss: {policy_loss:.6f}  ValueLoss: {value_loss:.6f}")
-            print(f" - Temperature: {temp:.4f}")
+            print(f" - Noise std: {noise_std:.4f}")
 
             # TensorBoard logging
             step = ep
@@ -221,10 +221,10 @@ class Trainer():
             self.writer.add_scalar("EpisodeLength/avg", avg_len, step)
             self.writer.add_scalar("PolicyLoss", policy_loss, step)
             self.writer.add_scalar("ValueLoss", value_loss, step)
-            self.writer.add_scalar("Temperature", temp, step)
+            self.writer.add_scalar("NoiseSTD", noise_std, step)
 
-            # step temperature scheduler
-            self.agent.policy_temp_scheduler.step(avg_r)
+            # step noise scheduler
+            self.agent.policy_noise_scheduler.step(avg_r)
 
         self.writer.close() # tensorboard writer
         return self.data    # dictionary of collected data

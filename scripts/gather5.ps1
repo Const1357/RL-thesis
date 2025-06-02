@@ -7,4 +7,4 @@ for ($i = 1; $i -le 5; $i++) {
     Invoke-Expression $command
 }
 
-# run example: .\scripts\gather5 ".\scripts\cartpole.ps1 -type logits"
+# run example: .\scripts\gather5 ".\scripts\runner cartpole logits noise"

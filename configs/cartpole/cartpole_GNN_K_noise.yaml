@@ -1,8 +1,10 @@
-# cartpole_GNN_frozen.yaml
-experiment_name: cartpole_GNN_frozen_mlp
+# cartpole_GNN_K_noise.yaml
+experiment_name: cartpole_GNN_K_noise_mlp
+
+K_num_components: 2
 
 network_type: mlp
-policy_type: GNN
+policy_type: GNN_K
 
 intervals:
   fn_name: trivial
@@ -16,16 +18,16 @@ mapping:
   kwargs:
     action_space_size: 2
 
-temp_scheduler_kwargs:
-  start_temp: 2.0
-  min_temp: 0.05
-  max_temp: 2.0
+noise_scheduler_kwargs:
+  start_std: 0.3
+  min_std: 0.002
+  max_std: 0.4
   decay_type: 'exponential'
   l_num_steps: 150
   e_decay_rate: 0.97
   accept_threshold: 400
   slope_threshold: 0.01
   window_size: 20
-  plateau_boost: 1.2
+  plateau_boost: 1.5
   suppress_factor: 0.85
-  frozen: true
+  frozen: False

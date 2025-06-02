@@ -5,6 +5,7 @@ import re
 from numpy import mean, std
 from math import *
 import numpy as np
+import gymnasium as gym
 
 from typing import Any, Tuple
 
@@ -188,3 +189,48 @@ resolve_mapping_fn = {
     'trivial' : mapping_trivial,
     # currently only trivial mapping, no need for re-ordering
 }
+
+
+class Categorical(torch.distributions.Categorical):
+    """Subclass of torch.distributions.Categorical to support noisy sampling
+    """
+    def __init__(self, probs=None, logits=None, validate_args=None):
+        super().__init__(probs=probs, logits=logits, validate_args=validate_args)
+
+    def noisy_sample(self, noise_std: float = 0.0) -> torch.Tensor:
+        """Sample from a categorical distribution with additive gaussian noise with std = noise_std
+        """
+
+        batch_shape = self._batch_shape
+        device = self.probs.device                                      # ensure we sample on the same device
+
+
+        u = torch.rand(batch_shape, device=device)                      # draw sample u ~ Uniform(0,1)
+
+        noise = torch.randn_like(u) * noise_std                         # sample from gaussian with variance=std^2 (torch.normal_like(u, std=std) but it doesnt exist. Same effect)
+        
+        u_noisy = torch.clamp(u + noise, min=0.0, max=1.0)              # Add noise to the uniform draw and clamp to [0, 1]:
+        cdf = torch.cumsum(self.probs, dim=-1)                          # compute cdf for each action
+        u_noisy_expanded = u_noisy.unsqueeze(-1)                        # reshape for sampling
+        sample = torch.searchsorted(cdf, u_noisy_expanded).squeeze(-1).clamp(max=self.probs.size(-1)-1)  # determine bin corresponding to action (= sample)
+
+        return sample
+    
+
+# Wrapper class to discretize the environment's action space
+class BoxToDiscreteWrapper(gym.ActionWrapper):
+
+    def __init__(self, env, num_bins):
+        super().__init__(env)
+
+        self.n_bins = num_bins
+        self.low = env.action_space.low[0]
+        self.high = env.action_space.high[0]
+
+        # bin values from linspace (ensures low and high are included) 
+        self.actions = np.linspace(self.low, self.high, num_bins).reshape(-1, 1)
+
+        self.action_space = gym.spaces.Discrete(num_bins)   # box -> discrete
+
+    def action(self, action_idx):
+        return self.actions[action_idx]

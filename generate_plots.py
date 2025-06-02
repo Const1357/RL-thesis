@@ -8,16 +8,32 @@ import seaborn as sns
 
 sns.set_style('darkgrid')
 
-environments = ['CartPole-v1']
+# environments = ['CartPole-v1', 'Pendulum-v1']
+# environments = ['CartPole-v1']
+environments = ['Pendulum-v1']
 
 # per environment constants:
 CONSTANTS = {
     'CartPole-v1': {
         'num_episodes' : 150,
         'max_reward' : 500,
+        'min_reward' : 0,
         'xtick_interval': 10,
         'ytick_interval': 50,
         'top_offset' : 20,
+        'bot_offset' : 1,
+        'left_offset' : -3,
+        'right_offset' : 3,
+    },
+
+    'Pendulum-v1': {
+        'num_episodes' : 600,
+        'max_reward' : 0,
+        'min_reward' : -1600,
+        'xtick_interval': 40,
+        'ytick_interval': 200,
+        'top_offset' : 0,
+        'bot_offset' : 0,
         'left_offset' : -3,
         'right_offset' : 3,
     }
@@ -30,14 +46,13 @@ for env in environments:
 
     all_reward_curves = []
     policy_model_sizes = []
-    # colors = ['blue', 'red', 'green', 'darkgreen', 'purple', 'orange', 'black']
     colors = [
     "#1f77b4",  # blue
     "#ff7f0e",  # orange
     "#2ca02c",  # green
     "#d62728",  # red
     "#7b3ab8",  # purple
-    "#00b899",  # brown
+    "#00b899",  # teal
     "#ff00b3"   # pink
     ]
     markers = ['o', 's', 'D', '^', 'v', 'P', '*']
@@ -50,7 +65,7 @@ for env in environments:
             with open(f"runs/{env}/pickle/{experiment}/{run}", 'rb') as f:
                 data.append(pickle.load(f))
 
-        x = np.arange(C['num_episodes'])      # NOTE: FIXED, CHANGE FOR EACH ENVIRONMENT. Cartpole is currently 150
+        x = np.arange(C['num_episodes'])
         
         # data[0] is the data dictionary for the first run
         # extract data that I will plot, combine it accross runs using numpy (stack and mean across dim)
@@ -60,13 +75,13 @@ for env in environments:
 
         reward_curves = [[s[1] for s in d['reward_curve'] ] for d in data]
 
-        temp_curves = [d['temperatures_curve'] for d in data]
-        stacked_temp_curves = np.stack(temp_curves).mean(axis=0)
-        norm_stacked_temp_curves = (stacked_temp_curves-stacked_temp_curves.min())/(stacked_temp_curves.max()-stacked_temp_curves.min())*500
+        noise_std_curves = [d['noise_stds_curve'] for d in data]
+        stacked_noise_std_curves = np.stack(noise_std_curves).mean(axis=0)
+        norm_stacked_noise_std_curves = (stacked_noise_std_curves-stacked_noise_std_curves.min())/(stacked_noise_std_curves.max()-stacked_noise_std_curves.min())*C['max_reward']
 
         entropy_curves = [[s[1] for s in d['entropy_curve'] ] for d in data]
         stacked_entropy_curves = np.stack(entropy_curves).mean(axis=0)
-        norm_stacked_entropy_curves = (stacked_entropy_curves-stacked_entropy_curves.min())/(stacked_entropy_curves.max()-stacked_entropy_curves.min())*500
+        norm_stacked_entropy_curves = (stacked_entropy_curves-stacked_entropy_curves.min())/(stacked_entropy_curves.max()-stacked_entropy_curves.min())*C['max_reward']
 
         stacked_reward_curves = np.stack(reward_curves)
         mean_reward_curve = np.mean(stacked_reward_curves, axis=0)
@@ -78,10 +93,10 @@ for env in environments:
         fig = plt.figure(figsize=(8,6))
 
         plt.plot(mean_reward_curve, color='blue', linewidth=1.5, label='Mean Reward')
-        plt.ylim(top=C['max_reward'] + C['top_offset'])
+        plt.ylim(top=C['max_reward'] + C['top_offset'], bottom=C['min_reward'] + C['bot_offset'])
         plt.xlim(left=C['left_offset'], right=C['num_episodes']+C['right_offset'])
         plt.xticks(range(0, C['num_episodes']+1, C['xtick_interval']))
-        plt.yticks(range(0,C['max_reward']+1, C['ytick_interval']))
+        plt.yticks(range(C['min_reward'],C['max_reward']+1, C['ytick_interval']))
 
         for i,rc in enumerate(reward_curves):
             if i == 0:
@@ -89,7 +104,7 @@ for env in environments:
             else:
                 plt.plot(rc, color='green', alpha=0.2, linewidth=1)
 
-        plt.plot(norm_stacked_temp_curves, color = 'red', linewidth=1, label='Temperature (normalized)')
+        plt.plot(norm_stacked_noise_std_curves, color = 'red', linewidth=1, label='Noise std (normalized)')
         plt.plot(norm_stacked_entropy_curves, color = 'purple', linewidth=1, label='Entropy (normalized)')
 
 
@@ -125,10 +140,10 @@ for env in environments:
     for i,curve in enumerate(all_reward_curves):
         plt.plot(curve, color=colors[i], label=experiments[i])#, marker=markers[i], markevery=15)
 
-    plt.ylim(top=C['max_reward'] + C['top_offset'])
+    plt.ylim(top=C['max_reward'] + C['top_offset'], bottom=C['min_reward'])
     plt.xlim(left=C['left_offset'], right=C['num_episodes']+C['right_offset'])
     plt.xticks(range(0, C['num_episodes']+1, C['xtick_interval']))
-    plt.yticks(range(0,C['max_reward']+1, C['ytick_interval']))
+    plt.yticks(range(C['min_reward'],C['max_reward']+1, C['ytick_interval']))
 
     plt.title(f'Rewards over Episodes for {env}')
     plt.xlabel('Episode')

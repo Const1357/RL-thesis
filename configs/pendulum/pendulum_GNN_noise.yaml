@@ -1,0 +1,31 @@
+# pendulum_GNN_noise.yaml
+experiment_name: pendulum_GNN_noise_mlp
+
+network_type: mlp
+policy_type: GNN
+
+intervals:
+  fn_name: trivial
+  kwargs:
+    xmin: -1
+    xmax: 1
+    action_space_size: 21
+
+mapping:
+  fn_name: trivial
+  kwargs:
+    action_space_size: 21
+
+noise_scheduler_kwargs:
+  start_std: 0.1
+  min_std: 0.001
+  max_std: 0.2
+  decay_type: 'exponential'
+  l_num_steps: 150
+  e_decay_rate: 0.99
+  accept_threshold: -300
+  slope_threshold: 0.01
+  window_size: 45
+  plateau_boost: 1.3
+  suppress_factor: 0.85
+  frozen: False

@@ -1,10 +1,11 @@
-# cartpole_common.yaml
+# pendulum_common.yaml
 
-env: CartPole-v1
+env: Pendulum-v1
 render: False
 num_envs: 4
 
-quantize: False
+quantize: True
+num_bins: 21
 
 # network_type: mlp
 # policy_type: logits
@@ -27,16 +28,16 @@ noise_scheduler_kwargs:
   max_std: 0
   decay_type: 'exponential'
   l_num_steps: 150
-  e_decay_rate: 0.97
-  accept_threshold: 400
+  e_decay_rate: 0.997
+  accept_threshold: -300
   slope_threshold: 0.01
   window_size: 20
   plateau_boost: 1.5
   suppress_factor: 0.85
   frozen: true
 
-batch_size: 1024
+batch_size: 512
 max_epochs: 4
-num_episodes: 150
-max_episode_length: 500
+num_episodes: 600
+max_episode_length: 200
 rollout_length: 4096

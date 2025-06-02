@@ -1,7 +1,7 @@
-# cartpole_Logits_Entropy.yaml
-experiment_name: cartpole_logits_Entropy_mlp
+# cartpole_logits_entropy.yaml
+experiment_name: cartpole_logits_entropy_mlp
 
 network_type: mlp
 policy_type: logits
 
-entropy_coef: 0.0005
+entropy_coef: 0.005

@@ -1,0 +1,7 @@
+# pendulum_logits_entropy.yaml
+experiment_name: pendulum_logits_entropy_mlp
+
+network_type: mlp
+policy_type: logits
+
+entropy_coef: 0.005

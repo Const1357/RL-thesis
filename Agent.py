@@ -3,7 +3,7 @@ from Utilities import *
 from Network import *
 
 import copy
-from Schedulers import *
+from Schedulers import NoiseSTDScheduler
 
 
 class Agent():
@@ -19,7 +19,7 @@ class Agent():
             'gae_lambda' : config['gae_lambda'],
             'max_KL' : config['max_KL'],
             'entropy_coef' : config['entropy_coef'],
-            'temp_scheduler_kwargs' : config['temp_scheduler_kwargs'],
+            'noise_scheduler_kwargs' : config['noise_scheduler_kwargs'],
             'batch_size' : config['batch_size'],
             'max_epochs' : config['max_epochs'],
         }
@@ -32,7 +32,7 @@ class Agent():
         self.value_optimizer = torch.optim.AdamW(self.value_net.parameters(), lr=config['value_lr'])
         self.policy_optimizer = torch.optim.AdamW(self.policy_net.parameters(), lr=config['policy_lr'])
 
-        self.policy_temp_scheduler = TemperatureScheduler(self.policy_net.temperature, **config['temp_scheduler_kwargs'])
+        self.policy_noise_scheduler = NoiseSTDScheduler(**config['noise_scheduler_kwargs'])
 
         self.old_policy_net = copy.deepcopy(self.policy_net)
 
@@ -47,8 +47,8 @@ class Agent():
         """
         self.value_net.train()
         self.policy_net.train()
-        if 'frozen' in self.hyperparameters['temp_scheduler_kwargs'].keys() and not self.hyperparameters['temp_scheduler_kwargs']['frozen']:
-            self.policy_temp_scheduler.unfreeze()
+        if 'frozen' in self.hyperparameters['noise_scheduler_kwargs'].keys() and not self.hyperparameters['noise_scheduler_kwargs']['frozen']:
+            self.policy_noise_scheduler.unfreeze()
         self.mode = 'train'
 
     def eval_mode(self):
@@ -85,7 +85,7 @@ class Agent():
         probs, raw = self.policy_net(observations)          # [B, E, N]
         values = self.value_net(observations).squeeze(-1)   # [B, E, 1] -> [B, E]
 
-        actions   = probs.sample().squeeze(0)               # [1, E] -> [E]
+        actions   = probs.noisy_sample(self.policy_noise_scheduler()).squeeze(0)               # [1, E] -> [E]
         log_probs = probs.log_prob(actions).squeeze(0)      # [1, E] -> [E]
         entropies = probs.entropy().squeeze(0)              # [1, E] -> [E]
 

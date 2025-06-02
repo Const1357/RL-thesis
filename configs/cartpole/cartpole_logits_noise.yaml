@@ -1,19 +1,19 @@
-# cartpole_Logits_Scheduler.yaml
-experiment_name: cartpole_logits_scheduler_mlp
+# cartpole_logits_noise.yaml
+experiment_name: cartpole_logits_noise_mlp
 
 network_type: mlp
 policy_type: logits
 
-temp_scheduler_kwargs:
-  start_temp: 2.0
-  min_temp: 0.05
-  max_temp: 2.0
+noise_scheduler_kwargs:
+  start_std: 0.3
+  min_std: 0.002
+  max_std: 0.4
   decay_type: 'exponential'
   l_num_steps: 150
   e_decay_rate: 0.97
   accept_threshold: 400
   slope_threshold: 0.01
   window_size: 20
-  plateau_boost: 1.2
+  plateau_boost: 1.5
   suppress_factor: 0.85
-  frozen: false
+  frozen: False

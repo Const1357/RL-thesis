@@ -1,0 +1,19 @@
+# cartpole_GNN_entropy.yaml
+experiment_name: cartpole_GNN_entropy_mlp
+
+network_type: mlp
+policy_type: GNN
+
+entropy_coef: 0.005
+
+intervals:
+  fn_name: trivial
+  kwargs:
+    xmin: -1
+    xmax: 1
+    action_space_size: 2
+
+mapping:
+  fn_name: trivial
+  kwargs:
+    action_space_size: 2

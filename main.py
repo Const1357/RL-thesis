@@ -25,10 +25,14 @@ import pickle
 # This implementation can currently support any cartpole-v1-like gym environment. Other environments are yet untesed.
 # I will add configuration files for other environments after completion of all methods. (GNN_N left + continuous)
 
-def make_env(name):
+def make_env(name, config):
     # used for multiple environments
     def _thunk():
-        return gym.make(name)
+
+        env = gym.make(name)
+        if config['quantize']:
+            env = BoxToDiscreteWrapper(env, config['num_bins'])
+        return env
     return _thunk
 
 def main():
@@ -43,15 +47,15 @@ def main():
 
     print(f"EXPERIMENT NAME = {EXPERIMENT_NAME}")
 
-    env_fns = [make_env(ENV_NAME) for _ in range(config['num_envs'])]   # num_envs:              E
+    env_fns = [make_env(ENV_NAME, config) for _ in range(config['num_envs'])]   # num_envs:              E
     env = SyncVectorEnv(env_fns)
 
     observation_space_size = env.single_observation_space.shape[0]      # observation_space dim: O 
     action_space_size = env.single_action_space.n                       # action_space dim:      A
 
     # Actor Critic networks instantiation based on configuration
-    policy_net = create_policy_network(input_size=observation_space_size, output_size=action_space_size, config=config)
-    value_net = create_value_network(input_size=observation_space_size, config=config)
+    policy_net = create_policy_network(input_size=observation_space_size, output_size=action_space_size, config=config).to(device)
+    value_net = create_value_network(input_size=observation_space_size, config=config).to(device)
     
     # Agent Instantiation based on configuration
     agent = Agent(

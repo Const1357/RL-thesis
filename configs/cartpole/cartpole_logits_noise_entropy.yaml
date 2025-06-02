@@ -1,0 +1,21 @@
+# cartpole_logits_noise_entropy.yaml
+experiment_name: cartpole_logits_noise_entropy_mlp
+
+network_type: mlp
+policy_type: logits
+
+entropy_coef: 0.005
+
+noise_scheduler_kwargs:
+  start_std: 0.3
+  min_std: 0.002
+  max_std: 0.4
+  decay_type: 'exponential'
+  l_num_steps: 150
+  e_decay_rate: 0.97
+  accept_threshold: 400
+  slope_threshold: 0.01
+  window_size: 20
+  plateau_boost: 1.5
+  suppress_factor: 0.85
+  frozen: False

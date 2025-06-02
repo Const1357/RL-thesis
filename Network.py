@@ -13,7 +13,7 @@ class PolicyNetwork(nn.Module):
         if self.network is not None: self.network.eval()
 
     # Overriding dunder __call__ without changing its semantics, simply for the return types to be visible in the implicit forward call of model(.)  
-    def __call__(self, *args, **kwargs) -> tuple[torch.distributions.categorical.Categorical, torch.Tensor]:
+    def __call__(self, *args, **kwargs) -> tuple[Categorical, torch.Tensor]:
         return super().__call__(*args, **kwargs)
 
 class ValueNetwork(nn.Module):

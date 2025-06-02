@@ -1,0 +1,21 @@
+# pendulum_logits_noise_entropy.yaml
+experiment_name: pendulum_logits_noise_entropy_mlp
+
+network_type: mlp
+policy_type: logits
+
+entropy_coef: 0.005
+
+noise_scheduler_kwargs:
+  start_std: 0.1
+  min_std: 0.001
+  max_std: 0.2
+  decay_type: 'exponential'
+  l_num_steps: 150
+  e_decay_rate: 0.99
+  accept_threshold: -300
+  slope_threshold: 0.01
+  window_size: 45
+  plateau_boost: 1.3
+  suppress_factor: 0.85
+  frozen: False

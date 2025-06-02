@@ -1,0 +1,17 @@
+# cartpole_GNN_.yaml
+experiment_name: cartpole_GNN_mlp
+
+network_type: mlp
+policy_type: GNN
+
+intervals:
+  fn_name: trivial
+  kwargs:
+    xmin: -1
+    xmax: 1
+    action_space_size: 2
+
+mapping:
+  fn_name: trivial
+  kwargs:
+    action_space_size: 2

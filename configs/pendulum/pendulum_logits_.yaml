@@ -1,0 +1,5 @@
+# pendulum_logits_.yaml
+experiment_name: pendulum_logits_mlp
+
+network_type: mlp
+policy_type: logits
