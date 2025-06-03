@@ -73,7 +73,8 @@ class GNN_MLP(PolicyNetwork):
         mean = out[:,:,0].unsqueeze(-1).unsqueeze(2)    # [B, E, 1, 1]
         mean[..., -1] = tanh_squash_to_interval(mean[..., -1], self.xmin+tol, self.xmax-tol)    # ensure mean is not outside of mapping area.
         std = out[:,:,1].unsqueeze(-1).unsqueeze(2)     # [B, E, 1, 1]
-        var = std**2                                    # [B, E, 1, 1]
+        std = fn.softplus(std) + 1e-6                   # [B, E, 1, 1] softplus for numerical stability
+        # var = std**2                                  # [B, E, 1, 1]
 
         intervals = self.intervals.expand(B, E, -1, -1) # [B, E, N, 2]
 
@@ -81,7 +82,7 @@ class GNN_MLP(PolicyNetwork):
         x_to   = intervals[:,:,:,1].unsqueeze(-1)       # [B, E, N, 1]
 
         # Integrating over intervals of interest
-        probs = gaussian_integral(mean, var, x_from=x_from, x_to=x_to)  # [B, E, N, 1]
+        probs = gaussian_integral(mean, std, x_from=x_from, x_to=x_to)  # [B, E, N, 1]
 
         # Normalizing to sum to 1. Z = probs.sum = 1 - rest.sum
         Z = probs.sum(dim=2, keepdim=True).clamp(min=tol)   # [B, E, 1, 1] 
@@ -137,9 +138,10 @@ class GNN_K_MLP(PolicyNetwork):
         means = out[:,:,:self.K].unsqueeze(2)                           # [B, E, 1, K]
         means[..., -1] = tanh_squash_to_interval(means[..., -1], self.xmin, self.xmax)    # ensure mean is not outside of mapping area.
         stds = out[:,:,self.K:2*self.K].unsqueeze(2)                    # [B, E, 1, K]
+        stds = fn.softplus(stds) + 1e-6                                 # [B, E, 1, K]  softplus for numerical stability
         ws = out[:,:,2*self.K:3*self.K].unsqueeze(2)                    # [B, E, 1, K]
         ws = fn.softmax(ws, dim=3)                                      # softmax weights on K dim to ensure > 0 and sum to 1
-        vars = stds**2                                                  # [B, E, 1, K]
+        # vars = stds**2                                                  # [B, E, 1, K]
 
         intervals = self.intervals.expand(B, E, -1, -1)                 # [B, E, N, 2] -> batch_dim, num_envs, act_dim, (x_from, x_to).shape=2
 
@@ -147,7 +149,7 @@ class GNN_K_MLP(PolicyNetwork):
         x_to   = intervals[:,:,:,1].unsqueeze(-1)                       # [B, E, N, 1]
 
         # Integrating over intervals of interest
-        probs = gaussian_mixture_integral(means, vars, ws, x_from=x_from, x_to=x_to)  # [B, E, N, 1]
+        probs = gaussian_mixture_integral(means, stds, ws, x_from=x_from, x_to=x_to)  # [B, E, N, 1]
 
         # Normalizing to sum to 1. Z = probs.sum = 1 - rest.sum
         Z = probs.sum(dim=2, keepdim=True).clamp(min=tol)                   # [B, E, 1, 1] 

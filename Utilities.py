@@ -55,20 +55,19 @@ def sample_from_gaussian_mixture(weights: torch.Tensor, means: torch.Tensor, var
 # ------------------------- Gaussian Integrals --------------------------------
 
 # Gaussian Cumulative Distribution Function (Gaussian integral from -∞ to x) using error function (torch.erf)
-def gaussian_cdf(x: torch.Tensor, mean: torch.Tensor, variance: torch.Tensor) -> torch.Tensor:
+def gaussian_cdf(x: torch.Tensor, mean: torch.Tensor, std: torch.Tensor) -> torch.Tensor:
     """Returns the Gaussian Cumulative Probability P[X <= x | X~N(mean, variance)] using torch.erf
 
     Args:
         x (torch.Tensor): Upper bound of the integration interval.
         mean (torch.Tensor): Mean of the normal distribution.
-        variance (torch.Tensor): Variance of the normal distribution.
+        std (torch.Tensor): Standard Deviation of the normal distribution.
     """
     
-    std = torch.sqrt(variance[:,:])
-    return 0.5 * (1 + torch.erf((x[:,:] - mean[:,:]) / (torch.sqrt(torch.tensor(2.0, dtype=torch.float32, device=device)) * std)))
+    return 0.5 * (1 + torch.erf((x[:,:] - mean[:,:]) / (1.4142135623730951 * std))) # 1.4142135623730951 = sqrt(2)
 
 # Gaussian Integral expressed in terms of Gaussian cdf subtraction
-def gaussian_integral(mean: torch.Tensor, variance: torch.Tensor, x_from: torch.Tensor = None, x_to: torch.Tensor = None) -> torch.Tensor:
+def gaussian_integral(mean: torch.Tensor, std: torch.Tensor, x_from: torch.Tensor = None, x_to: torch.Tensor = None) -> torch.Tensor:
     """Returns the probability of X being in the interval [x_from, x_to] using torch.erf
     for a closed-form solution that remains differentiable.
 
@@ -78,7 +77,7 @@ def gaussian_integral(mean: torch.Tensor, variance: torch.Tensor, x_from: torch.
     
     Args:
         mean (torch.Tensor): Mean of the normal distribution.
-        variance (torch.Tensor): Variance of the normal distribution.
+        std (torch.Tensor): Standard Deviation of the normal distribution.
         x_from (torch.Tensor, optional): Lower bound of the integration interval.
         x_to (torch.Tensor, optional): Upper bound of the integration interval.
     
@@ -89,14 +88,14 @@ def gaussian_integral(mean: torch.Tensor, variance: torch.Tensor, x_from: torch.
         return torch.ones_like(mean)
     
     if x_from is None and x_to is not None:
-        return gaussian_cdf(x_to, mean, variance)
+        return gaussian_cdf(x_to, mean, std)
     
     if x_from is not None and x_to is None:
-        return 1 - gaussian_cdf(x_from, mean, variance)
+        return 1 - gaussian_cdf(x_from, mean, std)
     
-    return (gaussian_cdf(x_to, mean, variance) - gaussian_cdf(x_from, mean, variance))
+    return (gaussian_cdf(x_to, mean, std) - gaussian_cdf(x_from, mean, std))
 
-def gaussian_mixture_integral(means: torch.Tensor, variances: torch.Tensor, weights: torch.Tensor, x_from: torch.Tensor = None, x_to: torch.Tensor = None) -> torch.Tensor:
+def gaussian_mixture_integral(means: torch.Tensor, stds: torch.Tensor, weights: torch.Tensor, x_from: torch.Tensor = None, x_to: torch.Tensor = None) -> torch.Tensor:
     
     """Returns the probability of X being in the interval [x_from, x_to] using torch.erf
     for a closed-form solution that remains differentiable.
@@ -107,7 +106,7 @@ def gaussian_mixture_integral(means: torch.Tensor, variances: torch.Tensor, weig
     
     Args:
         means (torch.Tensor): Means of the normal distribution components.
-        variances (torch.Tensor): Variances of the normal distribution components.
+        stds (torch.Tensor): Standard Deviations of the normal distribution components.
         weights (torch.Tensor): Weights of the normal distribution components.
         x_from (torch.Tensor, optional): Lower bound of the integration interval.
         x_to (torch.Tensor, optional): Upper bound of the integration interval.
@@ -124,13 +123,13 @@ def gaussian_mixture_integral(means: torch.Tensor, variances: torch.Tensor, weig
     gaussian_integrals = None
 
     if x_from is None and x_to is not None:
-        gaussian_integrals = gaussian_cdf(x_to, means, variances)
+        gaussian_integrals = gaussian_cdf(x_to, means, stds)
     
     elif x_from is not None and x_to is None:
-        gaussian_integrals =  1 - gaussian_cdf(x_from, means, variances)
+        gaussian_integrals =  1 - gaussian_cdf(x_from, means, stds)
     
     else:
-        gaussian_integrals = gaussian_cdf(x_to, means, variances) - gaussian_cdf(x_from, means, variances)
+        gaussian_integrals = gaussian_cdf(x_to, means, stds) - gaussian_cdf(x_from, means, stds)
         
     return torch.sum(weights * gaussian_integrals, dim=3)   # aggregate by summing along the K dimension 
 
