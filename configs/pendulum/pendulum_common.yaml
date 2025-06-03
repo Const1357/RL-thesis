@@ -2,10 +2,10 @@
 
 env: Pendulum-v1
 render: False
-num_envs: 4
+num_envs: 10
 
 quantize: True
-num_bins: 21
+num_bins: 7
 
 # network_type: mlp
 # policy_type: logits
@@ -38,6 +38,6 @@ noise_scheduler_kwargs:
 
 batch_size: 512
 max_epochs: 4
-num_episodes: 600
+num_episodes: 500
 max_episode_length: 200
 rollout_length: 4096

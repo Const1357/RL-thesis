@@ -15,7 +15,7 @@ import time
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f'Using Device: {device}')
 
-tol = 1e-7  # Tolerance.
+tol = 1e-6  # Tolerance.
 
 def count_parameters(model: torch.nn.Module)->int:
     """

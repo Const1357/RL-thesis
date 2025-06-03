@@ -154,6 +154,7 @@ class Agent():
         # T = rollout_length // E(num_envs)
 
         assert not old_log_probs.requires_grad
+        
 
         # observations  [T, E, O(obs_dim)]
         # actions       [T, E]
@@ -169,6 +170,8 @@ class Agent():
         actions_flat = actions.reshape(T*E)                 # [T*E] = rollout_length
         old_log_probs_flat = old_log_probs.reshape(T*E)     # [T*E] = rollout_length
         advantages_flat = advantages.reshape(T*E)           # [T*E] = rollout_length
+
+        print(f"[Advantage] mean: {advantages_flat.mean():.6f}, std: {advantages_flat.std():.6f}, min: {advantages_flat.min():.6f}, max: {advantages_flat.max():.6f}")
 
         # normalizing advantages after flattening (merging all environment transitions) => ensures global mean=0, std=1
         advantages_flat_norm = (advantages_flat - advantages_flat.mean()) / (advantages_flat.std() + tol)    # [T*E] = rollout_length

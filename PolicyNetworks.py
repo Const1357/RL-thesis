@@ -71,9 +71,10 @@ class GNN_MLP(PolicyNetwork):
         out = self.network(observation)                 # [B, E, 2] -> 2= 0.μ, 1.σ
 
         mean = out[:,:,0].unsqueeze(-1).unsqueeze(2)    # [B, E, 1, 1]
-        mean[..., -1] = tanh_squash_to_interval(mean[..., -1], self.xmin+tol, self.xmax-tol)    # ensure mean is not outside of mapping area.
+        # mean[..., -1] = tanh_squash_to_interval(mean[..., -1], self.xmin+tol, self.xmax-tol)    # ensure mean is not outside of mapping area.
         std = out[:,:,1].unsqueeze(-1).unsqueeze(2)     # [B, E, 1, 1]
-        std = fn.softplus(std) + 1e-6                   # [B, E, 1, 1] softplus for numerical stability
+        std = fn.softplus(std) + tol                    # [B, E, 1, 1] softplus for numerical stability
+        std.clamp_min_(tol)
         # var = std**2                                  # [B, E, 1, 1]
 
         intervals = self.intervals.expand(B, E, -1, -1) # [B, E, N, 2]
@@ -83,15 +84,27 @@ class GNN_MLP(PolicyNetwork):
 
         # Integrating over intervals of interest
         probs = gaussian_integral(mean, std, x_from=x_from, x_to=x_to)  # [B, E, N, 1]
+        probs.clamp_min_(1e-12)
 
         # Normalizing to sum to 1. Z = probs.sum = 1 - rest.sum
-        Z = probs.sum(dim=2, keepdim=True).clamp(min=tol)   # [B, E, 1, 1] 
-        probs = probs / Z                                   # [B, E, N, 1]
+        Z = probs.sum(dim=2, keepdim=True)                  # [B, E, 1, 1] 
+        probs = probs / (Z + tol)                           # [B, E, N, 1]
         probs = probs.squeeze(-1)                           # [B, E, N]
 
         # Mapping
         probs = probs[:,:, self.mapping]                    # [B, E, N]
 
+        # nan check and zero-sum check
+        nan_mask = torch.isnan(probs).any(dim=-1)
+        zero_mask = (probs.sum(dim=-1) <= 0)
+        bad = nan_mask | zero_mask
+        if bad.any():
+            B,E,N = probs.shape
+            print('[FORWARD] nan in probs or zero-sum of probs detected. Falling back to uniform distribution')
+            uniform = torch.full_like(probs, 1.0/N)
+            bad_expand = bad.unsqueeze(-1).expand(-1,-1, N)
+            probs = torch.where(bad_expand, uniform, probs)
+        
         dist = Categorical(probs=probs)
 
         return dist, (mean.squeeze(-1).squeeze(-1), std.squeeze(-1).squeeze(-1))    # [B, E]
@@ -136,9 +149,10 @@ class GNN_K_MLP(PolicyNetwork):
         out = self.network(observation)                                 # [B, E, 3*K] -> 3*K= (0.μ, 1.σ, 2.w)*K
 
         means = out[:,:,:self.K].unsqueeze(2)                           # [B, E, 1, K]
-        means[..., -1] = tanh_squash_to_interval(means[..., -1], self.xmin, self.xmax)    # ensure mean is not outside of mapping area.
+        # means[..., -1] = tanh_squash_to_interval(means[..., -1], self.xmin, self.xmax)    # ensure mean is not outside of mapping area.
         stds = out[:,:,self.K:2*self.K].unsqueeze(2)                    # [B, E, 1, K]
-        stds = fn.softplus(stds) + 1e-6                                 # [B, E, 1, K]  softplus for numerical stability
+        stds = fn.softplus(stds) + tol                                  # [B, E, 1, K]  softplus for numerical stability
+        stds.clamp_min_(tol)
         ws = out[:,:,2*self.K:3*self.K].unsqueeze(2)                    # [B, E, 1, K]
         ws = fn.softmax(ws, dim=3)                                      # softmax weights on K dim to ensure > 0 and sum to 1
         # vars = stds**2                                                  # [B, E, 1, K]
@@ -152,8 +166,8 @@ class GNN_K_MLP(PolicyNetwork):
         probs = gaussian_mixture_integral(means, stds, ws, x_from=x_from, x_to=x_to)  # [B, E, N, 1]
 
         # Normalizing to sum to 1. Z = probs.sum = 1 - rest.sum
-        Z = probs.sum(dim=2, keepdim=True).clamp(min=tol)                   # [B, E, 1, 1] 
-        probs = probs / Z                                                   # [B, E, N, 1]
+        Z = probs.sum(dim=2, keepdim=True)                                  # [B, E, 1, 1] 
+        probs = probs / (Z + tol)                                           # [B, E, N, 1]
         probs = probs.squeeze(-1)                                           # [B, E, N]
 
         # Mapping

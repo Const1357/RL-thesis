@@ -4,7 +4,7 @@ experiment_name: pendulum_GNN_K_noise_entropy_mlp
 network_type: mlp
 policy_type: GNN_K
 
-K_num_components: 5
+K_num_components: 3
 
 entropy_coef: 0.005
 
@@ -13,12 +13,12 @@ intervals:
   kwargs:
     xmin: -1
     xmax: 1
-    action_space_size: 21
+    action_space_size: 7
 
 mapping:
   fn_name: trivial
   kwargs:
-    action_space_size: 21
+    action_space_size: 7
 
 noise_scheduler_kwargs:
   start_std: 0.1

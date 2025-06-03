@@ -80,11 +80,18 @@ def create_policy_network(input_size: int, output_size: int, config: dict[str, A
             intervals = interval_fn(**config['intervals']['kwargs'])
             mapping = mapping_fn(**config['mapping']['kwargs'])
 
-            return GNN_MLP(input_size=input_size,
+            net = GNN_MLP(input_size=input_size,
                            hidden_layers=NETWORK_CONFIGS[config['network_type']][config['policy_net_size']],
                            name=config['policy_net_size'],
                            intervals=intervals,
                            mapping=mapping)
+            
+            with torch.no_grad():
+                for param in net.network[-1].parameters():  # final layer params set to 0 to ensure 0 mean start position.
+                    param.fill_(0.0)                        # this is the center of the mapping interval and will allow a good start to learn
+
+            return net
+
 
         elif config['policy_type'] == 'GNN_K':
             # if static :
@@ -99,12 +106,20 @@ def create_policy_network(input_size: int, output_size: int, config: dict[str, A
             intervals = interval_fn(**config['intervals']['kwargs'])
             mapping = mapping_fn(**config['mapping']['kwargs'])
 
-            return GNN_K_MLP(input_size=input_size,
+            net = GNN_K_MLP(input_size=input_size,
                            hidden_layers=NETWORK_CONFIGS[config['network_type']][config['policy_net_size']],
                            name=config['policy_net_size'],
                            intervals=intervals,
                            mapping=mapping,
                            K=config['K_num_components'])
+            
+            with torch.no_grad():
+                for param in net.network[-1].parameters():  # final layer params set to 0 to ensure 0 mean start position.
+                    param.fill_(0.0)                        # this is the center of the mapping interval and will allow a good start to learn
+
+            return net
+
+
         elif config['policy_type'] == 'GNN_N':
             return GNN_N_MLP()
         

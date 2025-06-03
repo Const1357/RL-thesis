@@ -8,9 +8,9 @@ import seaborn as sns
 
 sns.set_style('darkgrid')
 
-# environments = ['CartPole-v1', 'Pendulum-v1']
+environments = ['CartPole-v1', 'Pendulum-v1']
 # environments = ['CartPole-v1']
-environments = ['Pendulum-v1']
+# environments = ['Pendulum-v1']
 
 # per environment constants:
 CONSTANTS = {
@@ -53,9 +53,13 @@ for env in environments:
     "#d62728",  # red
     "#7b3ab8",  # purple
     "#00b899",  # teal
-    "#ff00b3"   # pink
+    "#ff00b3",  # pink
+    "#003968",  # dark blue
+    "#572102",  # brown
+    "#234111",  # dark green
+    "#000000",  # black
+    "#915E01",  # light brown
     ]
-    markers = ['o', 's', 'D', '^', 'v', 'P', '*']
 
     for experiment in experiments:
         runs = os.listdir(f"runs/{env}/pickle/{experiment}/")
