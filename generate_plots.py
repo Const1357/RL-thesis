@@ -27,10 +27,10 @@ CONSTANTS = {
     },
 
     'Pendulum-v1': {
-        'num_episodes' : 600,
+        'num_episodes' : 500,
         'max_reward' : 0,
         'min_reward' : -1600,
-        'xtick_interval': 40,
+        'xtick_interval': 50,
         'ytick_interval': 200,
         'top_offset' : 0,
         'bot_offset' : 0,
@@ -81,11 +81,11 @@ for env in environments:
 
         noise_std_curves = [d['noise_stds_curve'] for d in data]
         stacked_noise_std_curves = np.stack(noise_std_curves).mean(axis=0)
-        norm_stacked_noise_std_curves = (stacked_noise_std_curves-stacked_noise_std_curves.min())/(stacked_noise_std_curves.max()-stacked_noise_std_curves.min())*C['max_reward']
+        norm_stacked_noise_std_curves = (stacked_noise_std_curves-stacked_noise_std_curves.min())/(stacked_noise_std_curves.max()-stacked_noise_std_curves.min())*(C['max_reward'] - C['min_reward']) + C['min_reward']
 
         entropy_curves = [[s[1] for s in d['entropy_curve'] ] for d in data]
         stacked_entropy_curves = np.stack(entropy_curves).mean(axis=0)
-        norm_stacked_entropy_curves = (stacked_entropy_curves-stacked_entropy_curves.min())/(stacked_entropy_curves.max()-stacked_entropy_curves.min())*C['max_reward']
+        norm_stacked_entropy_curves = (stacked_entropy_curves-stacked_entropy_curves.min())/(stacked_entropy_curves.max()-stacked_entropy_curves.min())*(C['max_reward'] - C['min_reward']) + C['min_reward']
 
         stacked_reward_curves = np.stack(reward_curves)
         mean_reward_curve = np.mean(stacked_reward_curves, axis=0)

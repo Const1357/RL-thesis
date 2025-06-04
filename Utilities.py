@@ -63,8 +63,10 @@ def gaussian_cdf(x: torch.Tensor, mean: torch.Tensor, std: torch.Tensor) -> torc
         mean (torch.Tensor): Mean of the normal distribution.
         std (torch.Tensor): Standard Deviation of the normal distribution.
     """
-    
-    return 0.5 * (1 + torch.erf((x[:,:] - mean[:,:]) / (1.4142135623730951 * std))) # 1.4142135623730951 = sqrt(2)
+    # x has shape [B, E, N, 1]
+    # mean and std have shapes [B, E, 1, K]
+
+    return 0.5 * (1 + torch.erf((x[:,:] - mean[:,:]) / (1.4142135623730951 * (std.clamp_min_(tol))))) # 1.4142135623730951 = sqrt(2)
 
 # Gaussian Integral expressed in terms of Gaussian cdf subtraction
 def gaussian_integral(mean: torch.Tensor, std: torch.Tensor, x_from: torch.Tensor = None, x_to: torch.Tensor = None) -> torch.Tensor:
@@ -84,16 +86,24 @@ def gaussian_integral(mean: torch.Tensor, std: torch.Tensor, x_from: torch.Tenso
     Returns:
         torch.Tensor: Probability P[x_from ≤ x ≤ x_to | x ~ N(x | mean, variance)]
     """
+
+    B, E, _, _ = mean.shape
+
+
     if x_from is None and x_to is None:
-        return torch.ones_like(mean)
+        return torch.ones((B, E, 1, 1), device=device)
     
-    if x_from is None and x_to is not None:
-        return gaussian_cdf(x_to, mean, std)
+    elif x_from is None and x_to is not None:
+        ret =  gaussian_cdf(x_to, mean, std)
     
-    if x_from is not None and x_to is None:
-        return 1 - gaussian_cdf(x_from, mean, std)
-    
-    return (gaussian_cdf(x_to, mean, std) - gaussian_cdf(x_from, mean, std))
+    elif x_from is not None and x_to is None:
+        ret =  1 - gaussian_cdf(x_from, mean, std)
+        
+    else:
+        ret = (gaussian_cdf(x_to, mean, std) - gaussian_cdf(x_from, mean, std))
+
+    ret.clamp_min_(tol)
+    return ret
 
 def gaussian_mixture_integral(means: torch.Tensor, stds: torch.Tensor, weights: torch.Tensor, x_from: torch.Tensor = None, x_to: torch.Tensor = None) -> torch.Tensor:
     
@@ -115,14 +125,14 @@ def gaussian_mixture_integral(means: torch.Tensor, stds: torch.Tensor, weights: 
         torch.Tensor: Probability P[x_from ≤ X ≤ x_to | X ~ GMM(means, variances, weights)]
     """
 
+    B, E, _, K = means.shape
+
     if x_from is None and x_to is None:
-        return torch.ones_like(means)       # [B, E, 1, K]
+        return torch.ones((B,E,1,1), device=device)       # [B, E, 1, 1] is broadcastable to [B, E, N, 1]. N is unknown if x_from and x_to are None
     
     # x_from and x_to [B, E, N, 1]
     
-    gaussian_integrals = None
-
-    if x_from is None and x_to is not None:
+    elif x_from is None and x_to is not None:
         gaussian_integrals = gaussian_cdf(x_to, means, stds)
     
     elif x_from is not None and x_to is None:
@@ -131,7 +141,9 @@ def gaussian_mixture_integral(means: torch.Tensor, stds: torch.Tensor, weights: 
     else:
         gaussian_integrals = gaussian_cdf(x_to, means, stds) - gaussian_cdf(x_from, means, stds)
         
-    return torch.sum(weights * gaussian_integrals, dim=3)   # aggregate by summing along the K dimension 
+    ret = torch.sum(weights * gaussian_integrals, dim=3, keepdim=True)   # weighted sum along the K dimension. Keep 1 as K-th dimension for consistency after. 
+    ret.clamp_min_(tol)
+    return ret
 
 
 

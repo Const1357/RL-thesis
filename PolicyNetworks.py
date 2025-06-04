@@ -84,7 +84,6 @@ class GNN_MLP(PolicyNetwork):
 
         # Integrating over intervals of interest
         probs = gaussian_integral(mean, std, x_from=x_from, x_to=x_to)  # [B, E, N, 1]
-        probs.clamp_min_(1e-12)
 
         # Normalizing to sum to 1. Z = probs.sum = 1 - rest.sum
         Z = probs.sum(dim=2, keepdim=True)                  # [B, E, 1, 1] 
@@ -93,17 +92,6 @@ class GNN_MLP(PolicyNetwork):
 
         # Mapping
         probs = probs[:,:, self.mapping]                    # [B, E, N]
-
-        # nan check and zero-sum check
-        nan_mask = torch.isnan(probs).any(dim=-1)
-        zero_mask = (probs.sum(dim=-1) <= 0)
-        bad = nan_mask | zero_mask
-        if bad.any():
-            B,E,N = probs.shape
-            print('[FORWARD] nan in probs or zero-sum of probs detected. Falling back to uniform distribution')
-            uniform = torch.full_like(probs, 1.0/N)
-            bad_expand = bad.unsqueeze(-1).expand(-1,-1, N)
-            probs = torch.where(bad_expand, uniform, probs)
         
         dist = Categorical(probs=probs)
 
