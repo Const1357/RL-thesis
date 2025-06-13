@@ -39,12 +39,28 @@ CONSTANTS = {
     }
 }
 
+def key_from_name(experiment: str) -> str:
+    if 'noise_entropy' in experiment:
+        return 'noise_entropy'
+    elif 'noise' in experiment:
+        return 'noise'
+    elif 'entropy' in experiment:
+        return 'entropy'
+    else: 
+        return 'no_mod'
+
 for env in environments:
     experiments = os.listdir(f"runs/{env}/pickle/")
 
     C = CONSTANTS[env]
 
-    all_reward_curves = []
+    all_reward_curves = {
+        'no_mod' : [],
+        'noise' : [],
+        'entropy' : [],
+        'noise_entropy' : [],
+    }
+
     policy_model_sizes = []
     colors = [
     "#1f77b4",  # blue
@@ -91,7 +107,7 @@ for env in environments:
         mean_reward_curve = np.mean(stacked_reward_curves, axis=0)
         std_reward_curve = np.std(stacked_reward_curves, axis=0)
 
-        all_reward_curves.append(mean_reward_curve)
+        all_reward_curves[key_from_name(experiment)].append((mean_reward_curve, experiment))
         policy_model_sizes.append(data[0]['policy_size'])   # is same for all runs so pick the first = 0
 
         fig = plt.figure(figsize=(8,6))
@@ -136,51 +152,57 @@ for env in environments:
         # Plot 3: Policy Loss & Value loss? useless?
 
     
+    plt.show()
     # For ALL experiments together:
-    plt.show()
-    # Plot 1: Reward = f(Episode) - only mean runs and their stds, for each experiment (in the same plot)
-    fig = plt.figure(figsize=(8,6))
 
-    for i,curve in enumerate(all_reward_curves):
-        plt.plot(curve, color=colors[i], label=experiments[i])#, marker=markers[i], markevery=15)
+    # Group per modification
+    mods = ['no_mod', 'noise', 'entropy', 'noise_entropy']
 
-    plt.ylim(top=C['max_reward'] + C['top_offset'], bottom=C['min_reward'])
-    plt.xlim(left=C['left_offset'], right=C['num_episodes']+C['right_offset'])
-    plt.xticks(range(0, C['num_episodes']+1, C['xtick_interval']))
-    plt.yticks(range(C['min_reward'],C['max_reward']+1, C['ytick_interval']))
+    for mod in mods:
 
-    plt.title(f'Rewards over Episodes for {env}')
-    plt.xlabel('Episode')
-    plt.ylabel('Reward')
-    plt.legend(loc='lower right')
-    plt.tight_layout()
-    savedir_svg = f"runs/{env}/plots/reward_curves/svg/all_rewards.svg"
-    savedir_png = f"runs/{env}/plots/reward_curves/png/all_rewards.png"
-    fig.savefig(savedir_svg, format='svg')
-    fig.savefig(savedir_png, format='png')
-    plt.show()
+        # Plot 1: Reward = f(Episode) - only mean runs and their stds, for each experiment (in the same plot)
+        fig = plt.figure(figsize=(8,6))
 
-    # Plot 2: Scatter Plot of: Model Size(with tag=experiment_name)  Vs Earliest hit max reward on mean run (model size = x, earliest max reward = y)
-    # fig = plt.figure(figsize=(8,6))
+        for i,(curve,label) in enumerate(all_reward_curves[mod]):
+            plt.plot(curve, color=colors[i], label=label)#, marker=markers[i], markevery=15)
 
-    # x_points = list(range(len(all_reward_curves)))
-    # earliest_max = [np.argmax(curve) for curve in all_reward_curves]
+        plt.ylim(top=C['max_reward'] + C['top_offset'], bottom=C['min_reward'])
+        plt.xlim(left=C['left_offset'], right=C['num_episodes']+C['right_offset'])
+        plt.xticks(range(0, C['num_episodes']+1, C['xtick_interval']))
+        plt.yticks(range(C['min_reward'],C['max_reward']+1, C['ytick_interval']))
 
-    # labels = [f"{exp}_{sz}" for exp,sz in zip(experiments, policy_model_sizes)]
+        plt.title(f'Rewards over Episodes for {env} ({mod})')
+        plt.xlabel('Episode')
+        plt.ylabel('Reward')
+        plt.legend(loc='upper left')
+        plt.tight_layout()
+        savedir_svg = f"runs/{env}/plots/reward_curves/svg/all_rewards_{mod}.svg"
+        savedir_png = f"runs/{env}/plots/reward_curves/png/all_rewards_{mod}.png"
+        fig.savefig(savedir_svg, format='svg')
+        fig.savefig(savedir_png, format='png')
+        plt.show()
 
-    # plt.scatter(x_points, earliest_max, s=100)
-    # plt.xticks(ticks=x_points, labels=labels, rotation=45, ha='right')
-    # plt.xlabel('Model Type and Size')
-    # plt.ylabel('Earliest Max Reward Episode')
-    # plt.title('Model Size vs Earliest Max')
-    # plt.tight_layout()
-    # plt.show()
+        # Plot 2: Scatter Plot of: Model Size(with tag=experiment_name)  Vs Earliest hit max reward on mean run (model size = x, earliest max reward = y)
+        # fig = plt.figure(figsize=(8,6))
 
-    # ^ CURRENTLY USELESS. Should experiment with the same policy type and different model size. Unimportant for this study.
+        # x_points = list(range(len(all_reward_curves)))
+        # earliest_max = [np.argmax(curve) for curve in all_reward_curves]
+
+        # labels = [f"{exp}_{sz}" for exp,sz in zip(experiments, policy_model_sizes)]
+
+        # plt.scatter(x_points, earliest_max, s=100)
+        # plt.xticks(ticks=x_points, labels=labels, rotation=45, ha='right')
+        # plt.xlabel('Model Type and Size')
+        # plt.ylabel('Earliest Max Reward Episode')
+        # plt.title('Model Size vs Earliest Max')
+        # plt.tight_layout()
+        # plt.show()
+
+        # ^ CURRENTLY USELESS. Should experiment with the same policy type and different model size. Unimportant for this study.
 
 
-    # Plot 3: Table with rollout times in seconds for fixed amount of episodes, or table with forward pass times (compare complexity with logits-model)
-    # LATER.
+        # Plot 3: Table with rollout times in seconds for fixed amount of episodes, or table with forward pass times (compare complexity with logits-model)
+        # LATER.
 
 
         

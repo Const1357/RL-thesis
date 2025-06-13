@@ -1,8 +1,10 @@
-# cartpole_GNN_N_.yaml
-experiment_name: cartpole_GNN_N_mlp
+# cartpole_GNN_N_entropy.yaml
+experiment_name: cartpole_GNN_N_entropy_mlp
 
 network_type: mlp
 policy_type: GNN_N
+
+entropy_coef: 0.005
 
 aux_loss_kwargs:
   a: 0.1

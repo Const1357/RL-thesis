@@ -121,7 +121,10 @@ def create_policy_network(input_size: int, output_size: int, config: dict[str, A
 
 
         elif config['policy_type'] == 'GNN_N':
-            return GNN_N_MLP()
+            return GNN_N_MLP(input_size=input_size,
+                           hidden_layers=NETWORK_CONFIGS[config['network_type']][config['policy_net_size']],
+                           name=config['policy_net_size'],
+                           N = output_size)
         
     elif config['policy_type'] == 'cnn':
 

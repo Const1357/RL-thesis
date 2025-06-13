@@ -1,5 +1,5 @@
-# cartpole_GNN_N_.yaml
-experiment_name: cartpole_GNN_N_mlp
+# pendulum_GNN_N_.yaml
+experiment_name: pendulum_GNN_N_mlp
 
 network_type: mlp
 policy_type: GNN_N

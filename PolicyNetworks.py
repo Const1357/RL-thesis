@@ -167,7 +167,55 @@ class GNN_K_MLP(PolicyNetwork):
 
 # GNN-N
 class GNN_N_MLP(PolicyNetwork):
-    pass
+    def __init__(self,
+                 input_size,
+                 hidden_layers,
+                 N,         # action space size (N)
+                 name = '',):
+        super(GNN_N_MLP, self).__init__()
+
+        self.N = N
+        self.input_size = input_size
+        self.output_size = 2*N            # (mean, variance) for each of N actions
+        self._name = name
+
+        # Network that outputs 2 values: mean and std
+        layers = []
+        last_size = self.input_size
+        for hidden_size in hidden_layers:
+            layers.append(nn.Linear(last_size, hidden_size))
+            layers.append(nn.LeakyReLU())
+            last_size = hidden_size
+        layers.append(nn.Linear(last_size, self.output_size))
+        self.network = nn.Sequential(*layers).to(device)
+
+    def forward(self, observation: torch.Tensor):
+        
+        B, E, O = observation.shape                                     # [B, E, O]
+
+        # for name, p in self.named_parameters():
+        #     if torch.isnan(p).any() or torch.isinf(p).any():
+        #         print(f"PARAM NaN/Inf at {name}")
+
+        out = self.network(observation)                                 # [B, E, 2*N] -> 2*N= (0.μ, 1.σ)*N
+
+        means = out[:,:,:self.N]                                        # [B, E, N]
+        # means[..., -1] = tanh_squash_to_interval(means[..., -1], self.xmin, self.xmax)    # ensure mean is not outside of mapping area.
+        stds = out[:,:,self.N:2*self.N]                                 # [B, E, N]
+        # print("first = ", stds)   # TODO remove it
+        stds = fn.softplus(stds) + tol                                  # [B, E, N]  softplus for numerical stability
+        stds = stds.clamp_min(tol)
+        # vars = stds**2                                                # [B, E, N]
+        normal = torch.distributions.Normal(means, stds)
+        # sample a z-score from each gaussian for each action (N) using the reparametrization trick
+        samples = normal.rsample()
+        samples = means + 0.05*(samples-means)                          # [B, E, N]     # 0.3 SHOULD BE NOISE COEF
+
+        logits = samples.clamp(-20.0, 20.0)
+
+        dist = Categorical(logits=logits)
+
+        return dist, (means, stds)                                      # [B, E, N]
 
 
 ########### CNNs ############

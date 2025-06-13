@@ -39,6 +39,7 @@ class Agent():
         self.config = config
 
         self.aux_loss_kwargs = self.config['aux_loss_kwargs'] if 'aux_loss_kwargs' in self.config.keys() else None
+        print(self.aux_loss_kwargs)
 
 
     def train_mode(self):
@@ -151,6 +152,8 @@ class Agent():
         Returns:
             float: average policy loss across all batches
         """
+        torch.autograd.set_detect_anomaly(True)
+
         # T = rollout_length // E(num_envs)
 
         assert not old_log_probs.requires_grad
@@ -176,6 +179,8 @@ class Agent():
         # normalizing advantages after flattening (merging all environment transitions) => ensures global mean=0, std=1
         advantages_flat_norm = (advantages_flat - advantages_flat.mean()) / (advantages_flat.std() + tol)    # [T*E] = rollout_length
 
+        advantages_flat_norm = advantages_flat_norm.clamp(min=-10.0, max=10.0)
+
         dataset = torch.utils.data.TensorDataset(observations_flat, actions_flat, old_log_probs_flat, advantages_flat_norm)
         loader = torch.utils.data.DataLoader(dataset, batch_size=self.hyperparameters['batch_size'], shuffle=True)
 
@@ -196,32 +201,67 @@ class Agent():
                 batch_old_log_probs = batch_old_log_probs.detach()      # ensuring no gradient flow from old predictions
 
                 # new forward pass for new log probs. Unsqueezing dim 1 because network expects [B, E, O] shape -> [B, 1, O]
-                new_probs, raw = self.policy_net(batch_observations.unsqueeze(1))                           # [B, 1, N]
+                new_probs, raw = self.policy_net(batch_observations.unsqueeze(1))                           # [B, 1, N] new FORWARD PASS
                 # should squeeze dim 1 of new_probs
                 new_probs = torch.distributions.categorical.Categorical(probs=new_probs.probs.squeeze(1))   # [B, N]
         
                 new_log_probs = new_probs.log_prob(batch_actions)       # new log probs                       [B]
                 entropy = new_probs.entropy()                           # entropy for regularization          [B]
 
-                epsilon = self.hyperparameters['policy_clip']           #
+                epsilon = self.hyperparameters['policy_clip']           
 
                 # PPO Loss:
                 ratio = torch.exp(new_log_probs - batch_old_log_probs)                                  # [B]
                 clipped_ratio = torch.clamp(ratio, 1-epsilon, 1+epsilon)                                # [B]
                 surrogate = torch.min(ratio*batch_advantages, clipped_ratio*batch_advantages)           # [B]
-                policy_loss = - surrogate.mean() - self.hyperparameters['entropy_coef']*entropy.mean()  # [] = scalar
+                policy_loss = - surrogate - self.hyperparameters['entropy_coef']*entropy                # [B] reduction later
 
-                # aux loss here PROPOSAL 3
+                # aux loss here PER ACTION GAUSSIAN SCORES
                 if self.aux_loss_kwargs is not None:
-                    # do logic here, if loading a function is required, resolve it from the constructor UNDER THIS CONDITION.
-                    pass
+                    
+                    # extract args
+                    a = self.aux_loss_kwargs.get('a', 0.1)
+                    b = self.aux_loss_kwargs.get('b', 0.1)
+                    M = self.aux_loss_kwargs.get('M', 1)
 
+                    aux_coeff = self.aux_loss_kwargs.get('aux_coeff', 0.02)
+                    aux_mix = self.aux_loss_kwargs.get('aux_mix', 0.5)
+
+
+                    means, stds = raw                                               # [B, E, N], squeeze E
+                    means = means.squeeze(1)                                        # [B, N]
+                    stds = stds.squeeze(1)                                          # [B, N]
+
+
+                    I = intents(means)                                              # [B, N]
+                    C = confidences(stds**2)                                        # [B, N]
+
+                    L_penalty = loss_penalty(I, C, a, b, M).clamp(min=0.0, max=M)   # [B] in [0,1] (differentiable bounding transformation)
+                    L_margin_spread = margin_loss(I).clamp(min=-1.0, max=1.0)       # [B] in [-1, 1] (margin in [-1, 0], spread in [0, 1])
+
+                    # print('\n----------------------------')
+                    # print("Penalty Loss = ", L_penalty.mean().item())
+                    # print("Margin-Spread Loss", L_margin_spread.mean().item())
+                    # print('----------------------------\n')
+                    
+                    # Mixing into Existing Loss
+                    mixed_aux_loss = aux_mix*L_penalty + (1-aux_mix)*L_margin_spread
+                    # print("Policy loss before:", policy_loss.mean().item())
+                    policy_loss = (1- aux_coeff * mixed_aux_loss)*policy_loss       # comment if additive aux loss
+                    # policy_loss = policy_loss + aux_coeff*mixed_aux_loss          # uncomment if additive aux loss
+                    # print("Policy loss after:", policy_loss.mean().item())
+
+                policy_loss = policy_loss.mean()                                    # [] scalar, batch-wise averaging
                 total_policy_loss += policy_loss.item()
                 total_steps += 1
 
                 # optimizer step
                 self.policy_optimizer.zero_grad()
-                policy_loss.backward()
+                with torch.autograd.set_detect_anomaly(True):
+                    policy_loss = policy_loss.mean()
+                    policy_loss = torch.nan_to_num(policy_loss, nan=0.0, posinf=10.0, neginf=-10.0)
+
+                    policy_loss.backward()
                 if self.config['clip_grad'] != 0:
                     torch.nn.utils.clip_grad_norm_(self.policy_net.parameters(), max_norm=self.config['clip_grad']) # Gradient Clipping (if specified in config)
                 self.policy_optimizer.step()

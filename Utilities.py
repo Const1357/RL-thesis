@@ -148,13 +148,88 @@ def gaussian_mixture_integral(means: torch.Tensor, stds: torch.Tensor, weights: 
 
 
 # see shapes when implementing proposal 3
-def intents(means):
-    return torch.exp(means)
+def intents(means: torch.Tensor) -> torch.Tensor:
+    return torch.exp(means.clamp(min=-30.0, max=30.0))
 
-def confidences(variances):
-    return 1/(1+variances)
+def confidences(variances: torch.Tensor) -> torch.Tensor:
+    return 1/(1+variances.clamp_min(tol))
+
+def spread(cluster: torch.Tensor, target: torch.Tensor):
+
+    mask = (cluster != -1.0)                    # [B, N]
+    diffs = (cluster - target.unsqueeze(-1))    # [B, N]
+    sq_diffs = (diffs ** 2) * mask              # zero out padded values
+
+    spread = sq_diffs.sum(dim=-1) / mask.sum(dim=-1).clamp_min(1)           # [B]
+    norm = sq_diffs.masked_fill(~mask, float('-inf')).max(dim=-1).values    # [B]
+    return spread / (norm + tol)
+
+def ic_penalty(I: torch.Tensor, C: torch.Tensor, a: float, b: float) -> torch.Tensor:
+
+    x = (a * I).clamp(min=-30.0, max=30.0)              # Safe input for expm1
+    scale = (1 - C)                                     # C in [0,1]
+
+    penalty = torch.expm1(x) * scale * torch.exp(b * scale)
+    return penalty
 
 
+def sigmoid_bound(x: torch.Tensor, M: float) -> torch.Tensor:
+    """
+    Bounding transform T(x) = M * (1 - exp(-x / M)), preserves monotonicity and curvature.  
+    """
+    return M * (1 - torch.exp(-x / M))
+
+
+def loss_penalty(I: torch.Tensor, C: torch.Tensor, a: float, b: float, M: float) -> torch.Tensor:
+    penalty = ic_penalty(I, C, a, b)            # shape [B, N]
+    bounded = sigmoid_bound(penalty, M)         # shape [B, N]
+    return bounded.mean(dim=-1)                 # [B]
+
+def margin_loss(I:torch.Tensor) -> torch.Tensor:
+
+    I_max = I.max(dim=-1, keepdim=True).values
+    I_min = I.min(dim=-1, keepdim=True).values
+    radius = (I_max - I_min) / 2
+
+    high_mask = (I_max - I) < radius
+    low_mask = ~high_mask
+
+    H = I.masked_fill(low_mask, -1.0)      # [B, N] with padded nans for indices not belonging to the cluster
+    L = I.masked_fill(high_mask, -1.0)     # [B, N] with padded nans for indices not belonging to the cluster
+
+    # print(H)
+
+    # print(L)
+
+    Hmin = H.masked_fill(low_mask, float('inf')).min(dim=-1).values       # [B] at least one non-nan in each cluster at N-dim
+    Lmax = L.masked_fill(high_mask, float('-inf')).max(dim=-1).values     # [B] at least one non-nan in each cluster at N-dim
+
+    # print(Hmin)
+    # print(Lmax)
+
+    # Spread of Clusters
+    spread_H = spread(H, Hmin)                  # [B]
+    spread_L = spread(L, Lmax)                  # [B]
+
+    # B, N = I.shape
+    # k = max(1, N // 2)
+    # sorted_I = I.sort(dim=-1).values  # ascending
+    # L_vals = sorted_I[:, :N-k]        # low intents     [B, N-k]
+    # H_vals = sorted_I[:, N-k:]        # high intents    [B, k]
+
+    # Hmin = H_vals.min(dim=-1).values  # [B]
+    # Lmax = L_vals.max(dim=-1).values  # [B]
+
+    # # Spread of clusters
+    # spread_H = (H_vals - Hmin.unsqueeze(1)).pow(2).mean(dim=-1)     # [B]
+    # spread_L = (L_vals - Lmax.unsqueeze(1)).pow(2).mean(dim=-1)     # [B]
+
+    # Margin term: maximize separation between margin points in clusters
+    Lmargin = - (Hmin - Lmax)/(Hmin + Lmax + tol)                   # [B] in [-1, 0]
+    Lspread = 0.5*(spread_H + spread_L)                             # [B] in [0, 1]
+    L_margin_spread = (Lmargin + Lspread)                           # [B] in [-1, 1]
+
+    return L_margin_spread
 
 # ---------------------------------- Profiling ---------------------------------------
 
