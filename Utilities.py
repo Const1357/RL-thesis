@@ -278,7 +278,7 @@ resolve_mapping_fn = {
 
 
 class Categorical(torch.distributions.Categorical):
-    """Subclass of torch.distributions.Categorical to support noisy sampling
+    """Subclass of torch.distributions.Categorical to support noisy sampling (assumming ordered actions)
     """
     def __init__(self, probs=None, logits=None, validate_args=None):
         super().__init__(probs=probs, logits=logits, validate_args=validate_args)
