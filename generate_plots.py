@@ -145,6 +145,7 @@ for env in environments:
         fig.savefig(f"{savedir_svg}{experiment}_reward_curve.svg", format='svg')
         fig.savefig(f"{savedir_png}{experiment}_reward_curve.png", format='png')
         # plt.show()
+        plt.close()
         
 
         # Plot 2: Entropy, Temperature = f(Episode) - only mean runs, and std around entropy and temperature
@@ -152,7 +153,7 @@ for env in environments:
         # Plot 3: Policy Loss & Value loss? useless?
 
     
-    plt.show()
+    # plt.show()
     # For ALL experiments together:
 
     # Group per modification
@@ -180,7 +181,8 @@ for env in environments:
         savedir_png = f"runs/{env}/plots/reward_curves/png/all_rewards_{mod}.png"
         fig.savefig(savedir_svg, format='svg')
         fig.savefig(savedir_png, format='png')
-        plt.show()
+        # plt.show()
+        plt.close()
 
         # Plot 2: Scatter Plot of: Model Size(with tag=experiment_name)  Vs Earliest hit max reward on mean run (model size = x, earliest max reward = y)
         # fig = plt.figure(figsize=(8,6))

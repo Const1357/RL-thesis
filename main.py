@@ -35,7 +35,7 @@ def make_env(name, config):
         if config['quantize']:
             env = BoxToDiscreteWrapper(env, config['num_bins'])
 
-        if config['atari'] is not None:
+        if 'atari' in config:
             env = AtariWrapper(env)
             env = FrameStackObservation(env, stack_size=config['atari']['stack_size'])
 
