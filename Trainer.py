@@ -19,7 +19,7 @@ class Trainer():
                  config: dict[str, Any],
                  ):
         
-        self.writer = SummaryWriter(log_dir=f'runs/{env_name}/tensorboard/{experiment_name}/{experiment_name+experiment_tag}')  # tensorboard
+        # self.writer = SummaryWriter(log_dir=f'runs/{env_name}/tensorboard/{experiment_name}/{experiment_name+experiment_tag}')  # tensorboard
 
         self._render = config['render']
         
@@ -208,25 +208,25 @@ class Trainer():
 
             # TensorBoard logging
             step = ep
-            self.writer.add_scalar("Reward/avg", avg_r, step)
-            self.writer.add_scalar("Reward/min", min_r, step)
-            self.writer.add_scalar("Reward/max", max_r, step)
-            self.writer.add_scalar("Reward/std", std_r, step)
+            # self.writer.add_scalar("Reward/avg", avg_r, step)
+            # self.writer.add_scalar("Reward/min", min_r, step)
+            # self.writer.add_scalar("Reward/max", max_r, step)
+            # self.writer.add_scalar("Reward/std", std_r, step)
 
-            self.writer.add_scalar("Entropy/avg", avg_e, step)
-            self.writer.add_scalar("Entropy/min", min_e, step)
-            self.writer.add_scalar("Entropy/max", max_e, step)
-            self.writer.add_scalar("Entropy/std", std_e, step)
+            # self.writer.add_scalar("Entropy/avg", avg_e, step)
+            # self.writer.add_scalar("Entropy/min", min_e, step)
+            # self.writer.add_scalar("Entropy/max", max_e, step)
+            # self.writer.add_scalar("Entropy/std", std_e, step)
 
-            self.writer.add_scalar("EpisodeLength/avg", avg_len, step)
-            self.writer.add_scalar("PolicyLoss", policy_loss, step)
-            self.writer.add_scalar("ValueLoss", value_loss, step)
-            self.writer.add_scalar("NoiseSTD", noise_std, step)
+            # self.writer.add_scalar("EpisodeLength/avg", avg_len, step)
+            # self.writer.add_scalar("PolicyLoss", policy_loss, step)
+            # self.writer.add_scalar("ValueLoss", value_loss, step)
+            # self.writer.add_scalar("NoiseSTD", noise_std, step)
 
             # step noise scheduler
             self.agent.policy_noise_scheduler.step(avg_r)
 
-        self.writer.close() # tensorboard writer
+        # self.writer.close() # tensorboard writer
         return self.data    # dictionary of collected data
         
 

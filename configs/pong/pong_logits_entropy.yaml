@@ -1,0 +1,7 @@
+# pong_logits_.yaml
+experiment_name: pong_logits_cnn
+
+network_type: cnn
+policy_type: logits
+
+entropy_coef: 0.005

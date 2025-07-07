@@ -1,6 +1,8 @@
 from Utilities import *
 import gymnasium as gym
 from gymnasium.vector import SyncVectorEnv
+from gymnasium.wrappers import FrameStackObservation
+from stable_baselines3.common.atari_wrappers import AtariWrapper
 
 from Agent import Agent
 from Trainer import Trainer
@@ -28,10 +30,15 @@ import pickle
 def make_env(name, config):
     # used for multiple environments
     def _thunk():
-
+        print(name)
         env = gym.make(name)
         if config['quantize']:
             env = BoxToDiscreteWrapper(env, config['num_bins'])
+
+        if config['atari'] is not None:
+            env = AtariWrapper(env)
+            env = FrameStackObservation(env, stack_size=config['atari']['stack_size'])
+
         return env
     return _thunk
 
