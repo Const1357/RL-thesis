@@ -1,3 +1,3 @@
 __pycache__
 local_tests.py
-runs/
+# runs/ # moving to linux env for atari
