@@ -5,6 +5,7 @@ import re
 from numpy import mean, std
 from math import *
 import numpy as np
+import ale_py  # this registers ALE environments internally
 import gymnasium as gym
 
 from typing import Any, Tuple
