@@ -5,12 +5,18 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+import re
 
 sns.set_style('darkgrid')
 
 environments = ['CartPole-v1', 'Pendulum-v1']
 # environments = ['CartPole-v1']
 # environments = ['Pendulum-v1']
+
+standard_environments = {
+    'CartPole-v1' : 'CartPole-v1',
+    'Pendulum-v1' : 'Pendulum-v1 (Discretized)'
+}
 
 # per environment constants:
 CONSTANTS = {
@@ -48,6 +54,42 @@ def key_from_name(experiment: str) -> str:
         return 'entropy'
     else: 
         return 'no_mod'
+    
+
+def type_from_name(label: str) -> str:
+    if 'GNN_N' in label:
+        return 'GNN_N'
+    elif 'GNN_K' in label:
+        return 'GNN_K'
+    elif 'logits' in label:
+        return 'logits'
+    elif 'GNN' in label:
+        return 'GNN'
+
+    return ''
+
+def standardize_mod(mod: str) -> str:
+    if mod == 'no_mod': return 'No modification' 
+    return mod.replace('_', ' + ').title()
+
+def standardize_label(label: str) -> str:
+    type = type_from_name(label)
+    if type == 'logits': type = 'Logits (Baseline)'
+    mod = key_from_name(label)
+    mod = standardize_mod(mod)
+    # return f"{type} - {mod}"
+    return f"{type}"
+    
+def standardize_individual_label(label: str, env: str) -> str:
+    type = type_from_name(label)
+    if type == 'logits': type = 'Logits (Baseline)'
+    mod = key_from_name(label)
+    mod = standardize_mod(mod)
+    env = standard_environments[env]
+    return f"{env} - {type} ({mod})"
+
+def color_from_name(label: str) -> str:
+    return colors_dict[type_from_name(label)]
 
 for env in environments:
     experiments = os.listdir(f"runs/{env}/pickle/")
@@ -77,6 +119,13 @@ for env in environments:
     "#915E01",  # light brown
     ]
 
+    colors_dict = {
+        'logits' : colors[0],
+        'GNN' : colors[1],
+        'GNN_K' : colors[2],
+        'GNN_N' : colors[3],
+   }
+
     for experiment in experiments:
         runs = os.listdir(f"runs/{env}/pickle/{experiment}/")
 
@@ -91,7 +140,6 @@ for env in environments:
         # extract data that I will plot, combine it accross runs using numpy (stack and mean across dim)
 
         # Plot 1: Reward = f(Episode)
-            # could be good to show the temperature in the same plot
 
         reward_curves = [[s[1] for s in d['reward_curve'] ] for d in data]
 
@@ -110,7 +158,7 @@ for env in environments:
         all_reward_curves[key_from_name(experiment)].append((mean_reward_curve, experiment))
         policy_model_sizes.append(data[0]['policy_size'])   # is same for all runs so pick the first = 0
 
-        fig = plt.figure(figsize=(8,6))
+        fig = plt.figure(figsize=(9,6))
 
         plt.plot(mean_reward_curve, color='blue', linewidth=1.5, label='Mean Reward')
         plt.ylim(top=C['max_reward'] + C['top_offset'], bottom=C['min_reward'] + C['bot_offset'])
@@ -124,7 +172,9 @@ for env in environments:
             else:
                 plt.plot(rc, color='green', alpha=0.2, linewidth=1)
 
-        plt.plot(norm_stacked_noise_std_curves, color = 'red', linewidth=1, label='Noise std (normalized)')
+        if not np.isnan(norm_stacked_noise_std_curves).any():
+            plt.plot(norm_stacked_noise_std_curves, color = 'red', linewidth=1, label='Noise std (normalized)')
+
         plt.plot(norm_stacked_entropy_curves, color = 'purple', linewidth=1, label='Entropy (normalized)')
 
 
@@ -135,7 +185,7 @@ for env in environments:
         plt.xlabel('Episode')
         plt.ylabel('Reward')
         plt.legend(loc='lower left')
-        plt.title(experiment)
+        plt.title(f"Rewards over Episodes for {standardize_individual_label(experiment, env)}")
         plt.tight_layout()
         savedir_svg = f"runs/{env}/plots/reward_curves/svg/"
         savedir_png = f"runs/{env}/plots/reward_curves/png/"
@@ -158,21 +208,31 @@ for env in environments:
 
     # Group per modification
     mods = ['no_mod', 'noise', 'entropy', 'noise_entropy']
+    types = ['logits', 'GNN', 'GNN_K', 'GNN_N']
 
     for mod in mods:
 
         # Plot 1: Reward = f(Episode) - only mean runs and their stds, for each experiment (in the same plot)
-        fig = plt.figure(figsize=(8,6))
+        fig = plt.figure(figsize=(9,6))
+
+        to_plot = {
+            _type : None for _type in types
+        }
 
         for i,(curve,label) in enumerate(all_reward_curves[mod]):
-            plt.plot(curve, color=colors[i], label=label)#, marker=markers[i], markevery=15)
+            to_plot[type_from_name(label)] = (curve, color_from_name(label), standardize_label(label))
+
+        for t in types:
+            curve = to_plot[t]
+            if curve is not None:
+                plt.plot(curve[0], color=curve[1], label=curve[2])
 
         plt.ylim(top=C['max_reward'] + C['top_offset'], bottom=C['min_reward'])
         plt.xlim(left=C['left_offset'], right=C['num_episodes']+C['right_offset'])
         plt.xticks(range(0, C['num_episodes']+1, C['xtick_interval']))
         plt.yticks(range(C['min_reward'],C['max_reward']+1, C['ytick_interval']))
 
-        plt.title(f'Rewards over Episodes for {env} ({mod})')
+        plt.title(f'Rewards over Episodes for {env} ({standardize_mod(mod)})')
         plt.xlabel('Episode')
         plt.ylabel('Reward')
         plt.legend(loc='upper left')
