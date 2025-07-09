@@ -154,7 +154,7 @@ class Agent():
         Returns:
             float: average policy loss across all batches
         """
-        torch.autograd.set_detect_anomaly(True)
+        # torch.autograd.set_detect_anomaly(True)
 
         # T = rollout_length // E(num_envs)
 
@@ -266,11 +266,12 @@ class Agent():
 
                 # optimizer step
                 self.policy_optimizer.zero_grad()
-                with torch.autograd.set_detect_anomaly(True):
-                    policy_loss = policy_loss.mean()
-                    policy_loss = torch.nan_to_num(policy_loss, nan=0.0, posinf=10.0, neginf=-10.0)
+                # with torch.autograd.set_detect_anomaly(True):
+                policy_loss = policy_loss.mean()
+                policy_loss = torch.nan_to_num(policy_loss, nan=0.0, posinf=10.0, neginf=-10.0)
 
-                    policy_loss.backward()
+                policy_loss.backward()
+
                 if self.config['clip_grad'] != 0:
                     torch.nn.utils.clip_grad_norm_(self.policy_net.parameters(), max_norm=self.config['clip_grad']) # Gradient Clipping (if specified in config)
                 self.policy_optimizer.step()

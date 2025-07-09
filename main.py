@@ -39,18 +39,18 @@ def make_env(name, config):
         if config['quantize']:
             env = BoxToDiscreteWrapper(env, config['num_bins'])
 
+        env = TimeLimit(env, max_episode_steps=config['max_episode_length'])
         if 'atari' in config:
             env = gym.wrappers.AtariPreprocessing(
                 env,
                 grayscale_obs=True,
                 scale_obs=True,     # normalize to [0,1]
-                frame_skip=4,
+                frame_skip=3,
             )
-            env = FrameStackObservation(env, stack_size=config['atari']['stack_size'])
             env = RewardClippingWrapper(env, min=-1, max=1)
+            env = FrameStackObservation(env, stack_size=config['atari']['stack_size'])
         
-        env = TimeLimit(env, max_episode_steps=config['max_episode_length'])
-        env = Autoreset(env)
+        # env = Autoreset(env)
         return env
     return _thunk
 

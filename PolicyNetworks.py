@@ -260,8 +260,8 @@ class LogitsCNN(PolicyNetwork):
         self.head = nn.Linear(in_features, output_size)     # output_size = N (action space size)
 
         # Initialization
-        nn.init.constant_(self.head.bias, 0.0)
-        nn.init.orthogonal_(self.head.weight, gain=0.01)
+        # nn.init.constant_(self.head.bias, 0.0)
+        # nn.init.orthogonal_(self.head.weight, gain=1.0)
 
     def forward(self, observation: torch.Tensor):
         
@@ -324,8 +324,8 @@ class GNN_N_CNN(PolicyNetwork):
         self.head = nn.Linear(in_features, 2*output_size)     # output_size = 2*N (action space size)
 
         # Initialization
-        nn.init.constant_(self.head.bias, 0.0)
-        nn.init.orthogonal_(self.head.weight, gain=0.01)
+        # nn.init.constant_(self.head.bias, 0.0)
+        # nn.init.orthogonal_(self.head.weight, gain=1.0)
 
     def forward(self, observation: torch.Tensor):
 

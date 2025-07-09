@@ -99,6 +99,12 @@ class Trainer():
                 # env step
                 next_obs, rewards, terminated, truncated, infos = self.env.step(actions.detach().cpu().numpy())
 
+                # Manual reset of individual environments that have terminated
+                done_mask_np = np.logical_or(terminated, truncated)
+                if np.any(done_mask_np):
+                    reset_obs, _ = self.env.reset(options={'reset_mask' : done_mask_np})
+                    next_obs[done_mask_np] = reset_obs[done_mask_np]
+
                 # Clone next_obs to preserve true post-reset obs (initial state)
                 true_next_obs = torch.tensor(next_obs, dtype=torch.float32, device=device)  # [E, O]
                 bootstrap_obs = true_next_obs.clone()  # this will be patched with final obs
@@ -116,13 +122,13 @@ class Trainer():
                     true_next_obs = true_next_obs.unsqueeze(0)
 
                 # done mask (total batch consists of multiple episodes, compute gae correctly without episodes bleeding into each other)
-                done_mask = torch.tensor([ter or tru for ter, tru in zip(terminated, truncated)],dtype=torch.float32, device=device)
+                done_mask = torch.tensor(done_mask_np, dtype=torch.float32, device=device)
 
+                # prepare to add to buffer, remove batch_dim
                 if obs.dim() == 3 or obs.dim() == 5:
-                    obs = obs.squeeze(0)    # prepare to add to buffer, remove batch_dim
-
+                    obs = obs.squeeze(0)    
                 if values.dim() == 2 or values.dim() == 4:
-                    values = values.squeeze(0)  # prepare to add to buffer, remove batch_dim
+                    values = values.squeeze(0)
 
                 # entry is added to buffer
                 trajectory.add_batch(
@@ -139,7 +145,7 @@ class Trainer():
             # Bootstrapping last value
             last_values = self.agent.value_net(bootstrap_obs).detach()  # shape: [E]
 
-            # returns and GAE inside buffer
+            # returns and GAE computation (inside the buffer)
             trajectory.compute_returns_and_GAE(last_values, gamma=self.gamma, lam=self.gae_lambda)
 
 
@@ -254,7 +260,6 @@ class Trainer():
                 trajectory.returns)
 
             if ep % 15 == 0:
-
                 rewards, lengths, entropies = self.rollout_for_logging()
 
                 # aggregate reward stats
@@ -292,27 +297,9 @@ class Trainer():
                 print(f" - PolicyLoss: {policy_loss:.6f}  ValueLoss: {value_loss:.6f}")
                 print(f" - Noise std: {noise_std:.4f}")
 
-                # TensorBoard logging
-                step = ep
-                # self.writer.add_scalar("Reward/avg", avg_r, step)
-                # self.writer.add_scalar("Reward/min", min_r, step)
-                # self.writer.add_scalar("Reward/max", max_r, step)
-                # self.writer.add_scalar("Reward/std", std_r, step)
-
-                # self.writer.add_scalar("Entropy/avg", avg_e, step)
-                # self.writer.add_scalar("Entropy/min", min_e, step)
-                # self.writer.add_scalar("Entropy/max", max_e, step)
-                # self.writer.add_scalar("Entropy/std", std_e, step)
-
-                # self.writer.add_scalar("EpisodeLength/avg", avg_len, step)
-                # self.writer.add_scalar("PolicyLoss", policy_loss, step)
-                # self.writer.add_scalar("ValueLoss", value_loss, step)
-                # self.writer.add_scalar("NoiseSTD", noise_std, step)
-
                 # step noise scheduler
                 self.agent.policy_noise_scheduler.step(avg_r)
 
-        # self.writer.close() # tensorboard writer
         return self.data    # dictionary of collected data
         
 
