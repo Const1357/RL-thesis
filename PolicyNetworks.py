@@ -200,9 +200,9 @@ class GNN_N_MLP(PolicyNetwork):
         out = self.network(observation)                                 # [B, E, 2*N] -> 2*N= (0.μ, 1.σ)*N
 
         means = out[:,:,:self.N]                                        # [B, E, N]
-        # means[..., -1] = tanh_squash_to_interval(means[..., -1], self.xmin, self.xmax)    # ensure mean is not outside of mapping area.
+
         stds = out[:,:,self.N:2*self.N]                                 # [B, E, N]
-        # print("first = ", stds)   # TODO remove it
+
         stds = fn.softplus(stds) + tol                                  # [B, E, N]  softplus for numerical stability
         stds = stds.clamp_min(tol)
         # vars = stds**2                                                # [B, E, N]
@@ -228,16 +228,130 @@ class GNN_N_MLP(PolicyNetwork):
 
 # Logits CNN
 class LogitsCNN(PolicyNetwork):
-    pass
+    def __init__(self, output_size: int, input_channels: int, input_height: int, input_width: int, conv_layers: list, fc_layers: list):
+        super(LogitsCNN, self).__init__()
 
-# GNN CNN
-class GNN_CNN(PolicyNetwork):
-    pass
+        in_channels = input_channels
 
-# GNN-K CNN
-class GNN_K_CNN(PolicyNetwork):
-    pass
+        # Convolutional Layers
+        _conv_layers = []
+        for out_channels, kernel_size, stride, padding in conv_layers:
+            _conv_layers.append(nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding))
+            _conv_layers.append(nn.ReLU())
+            in_channels=out_channels
+        self.conv = nn.Sequential(*_conv_layers)
+
+        # flattened dimension computation by passing dummy input from the convolutional network
+        with torch.no_grad():
+            dummy_input = torch.zeros(1, input_channels, input_height, input_width)
+            conv_out = self.conv(dummy_input)
+            flat_dim = conv_out.view(1, -1).shape[1]
+
+        # Fully Connected (Linear) Layers
+        in_features = flat_dim
+        _fc_layers = []
+        for out_features in fc_layers:
+            _fc_layers.append(nn.Linear(in_features, out_features))
+            _fc_layers.append(nn.ReLU())
+            in_features = out_features
+
+        self.fc = nn.Sequential(*_fc_layers)
+
+        self.head = nn.Linear(in_features, output_size)     # output_size = N (action space size)
+
+        # Initialization
+        nn.init.constant_(self.head.bias, 0.0)
+        nn.init.orthogonal_(self.head.weight, gain=0.01)
+
+    def forward(self, observation: torch.Tensor):
+        
+        # print(observation.shape)
+        B, E, C, H, W = observation.shape
+
+        x = observation.view(B*E, C, H, W)  # join batch and env dimensions, conv2d expects [B, C, H, W] input
+
+        x = self.conv(x)
+        x = x.view(x.size(0), -1)   # flattening
+        x = self.fc(x)
+        logits = self.head(x).view(B, E, -1)    # converting [B x E, rest] -> [B, E, rest] to match the rest of the implementation
+        probs = Categorical(logits=logits)
+        return probs, logits
+
+
+
+# Will not experiment with image-based environments for these methods as they have not performed well enough on simpler environments.
+# # GNN CNN
+# class GNN_CNN(PolicyNetwork):
+#     pass
+
+# # GNN-K CNN
+# class GNN_K_CNN(PolicyNetwork):
+#     pass
 
 # GNN-N CNN
 class GNN_N_CNN(PolicyNetwork):
-    pass
+    def __init__(self, output_size: int, input_channels: int, input_height: int, input_width: int, conv_layers: list, fc_layers: list):
+        super(GNN_N_CNN, self).__init__()
+
+        self.N = output_size
+
+        in_channels = input_channels
+
+        # Convolutional Layers
+        _conv_layers = []
+        for out_channels, kernel_size, stride, padding in conv_layers:
+            _conv_layers.append(nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding))
+            _conv_layers.append(nn.ReLU())
+            in_channels=out_channels
+        self.conv = nn.Sequential(*_conv_layers)
+
+        # flattened dimension computation by passing dummy input from the convolutional network
+        with torch.no_grad():
+            dummy_input = torch.zeros(1, input_channels, input_height, input_width)
+            conv_out = self.conv(dummy_input)
+            flat_dim = conv_out.view(1, -1).shape[1]
+
+        # Fully Connected (Linear) Layers
+        in_features = flat_dim
+        _fc_layers = []
+        for out_features in fc_layers:
+            _fc_layers.append(nn.Linear(in_features, out_features))
+            _fc_layers.append(nn.ReLU())
+            in_features = out_features
+
+        self.fc = nn.Sequential(*_fc_layers)
+
+        self.head = nn.Linear(in_features, 2*output_size)     # output_size = 2*N (action space size)
+
+        # Initialization
+        nn.init.constant_(self.head.bias, 0.0)
+        nn.init.orthogonal_(self.head.weight, gain=0.01)
+
+    def forward(self, observation: torch.Tensor):
+
+
+        B, E, C, H, W = observation.shape                               # [B, E, C, H, W]
+        
+        x = observation.view(B*E, C, H, W)  # join batch and env dimensions, conv2d expects [B, C, H, W] input
+        x = self.conv(x)
+        x = x.view(x.size(0), -1)   # flattening
+        x = self.fc(x)                                                
+        out = self.head(x).view(B, E, -1)                               # [B, E, 2*N] -> 2*N= (0.μ, 1.σ)*N
+
+        means = out[:,:,:self.N]                                        # [B, E, N]
+
+        stds = out[:,:,self.N:2*self.N]                                 # [B, E, N]
+
+        stds = fn.softplus(stds) + tol                                  # [B, E, N]  softplus for numerical stability
+        stds = stds.clamp_min(tol)
+        # vars = stds**2                                                # [B, E, N]
+        normal = torch.distributions.Normal(means, stds)
+        # sample a z-score from each gaussian for each action (N) using the reparametrization trick
+        samples = normal.rsample()
+        samples = means + 0.05*(samples-means)                          # [B, E, N]     0.05 is the strength of the noise.
+
+        logits = samples.clamp(-20.0, 20.0)
+
+        dist = Categorical(logits=logits)
+
+        return dist, (means, stds)                                      # [B, E, N]

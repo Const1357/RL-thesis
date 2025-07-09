@@ -163,7 +163,8 @@ def spread(cluster: torch.Tensor, target: torch.Tensor):
 
     spread = sq_diffs.sum(dim=-1) / mask.sum(dim=-1).clamp_min(1)           # [B]
     norm = sq_diffs.masked_fill(~mask, float('-inf')).max(dim=-1).values    # [B]
-    return spread / (norm + tol)
+    norm = torch.clamp(norm, min=tol)
+    return spread / norm
 
 def ic_penalty(I: torch.Tensor, C: torch.Tensor, a: float, b: float) -> torch.Tensor:
 
@@ -205,32 +206,23 @@ def margin_loss(I:torch.Tensor) -> torch.Tensor:
     Hmin = H.masked_fill(low_mask, float('inf')).min(dim=-1).values       # [B] at least one non-nan in each cluster at N-dim
     Lmax = L.masked_fill(high_mask, float('-inf')).max(dim=-1).values     # [B] at least one non-nan in each cluster at N-dim
 
-    # print(Hmin)
-    # print(Lmax)
+    Hmin = torch.clamp(Hmin, min=-1e6, max=1e6)
+    Lmax = torch.clamp(Lmax, min=-1e6, max=1e6)
 
     # Spread of Clusters
     spread_H = spread(H, Hmin)                  # [B]
     spread_L = spread(L, Lmax)                  # [B]
 
-    # B, N = I.shape
-    # k = max(1, N // 2)
-    # sorted_I = I.sort(dim=-1).values  # ascending
-    # L_vals = sorted_I[:, :N-k]        # low intents     [B, N-k]
-    # H_vals = sorted_I[:, N-k:]        # high intents    [B, k]
-
-    # Hmin = H_vals.min(dim=-1).values  # [B]
-    # Lmax = L_vals.max(dim=-1).values  # [B]
-
-    # # Spread of clusters
-    # spread_H = (H_vals - Hmin.unsqueeze(1)).pow(2).mean(dim=-1)     # [B]
-    # spread_L = (L_vals - Lmax.unsqueeze(1)).pow(2).mean(dim=-1)     # [B]
-
     # Margin term: maximize separation between margin points in clusters
-    Lmargin = - (Hmin - Lmax)/(Hmin + Lmax + tol)                   # [B] in [-1, 0]
-    Lspread = 0.5*(spread_H + spread_L)                             # [B] in [0, 1]
-    L_margin_spread = (Lmargin + Lspread)                           # [B] in [-1, 1]
+    denom = Hmin + Lmax + tol
+    denom = torch.where(denom.abs() < tol, torch.ones_like(denom) * tol, denom) # distance from 0 is at least tol
 
-    return L_margin_spread
+    Lmargin = - (Hmin - Lmax)/denom         # [B] in [-1, 0]
+    Lspread = 0.5*(spread_H + spread_L)     # [B] in [0, 1]
+    L_margin_spread = (Lmargin + Lspread)   # [B] in [-1, 1]
+
+    # sanitization
+    return torch.nan_to_num(L_margin_spread, nan=0.0, posinf=1.0, neginf=-1.0)
 
 # ---------------------------------- Profiling ---------------------------------------
 

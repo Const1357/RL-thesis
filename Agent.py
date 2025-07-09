@@ -41,6 +41,8 @@ class Agent():
         self.aux_loss_kwargs = self.config['aux_loss_kwargs'] if 'aux_loss_kwargs' in self.config.keys() else None
         print(self.aux_loss_kwargs)
 
+        self.ALE = config['policy_net_size'] == 'ALE'
+
 
     def train_mode(self):
         """
@@ -167,9 +169,16 @@ class Agent():
         # Constructing a dataset of [B, T, E] is problematic. The point of running multiple environments is to 
         # merge the results together, therefore we flatten the T,E dimensions to a single T*E dimension.
 
-        T,E,O = observations.shape
+        
+        if self.ALE:
+            T,E,C,H,W = observations.shape
+        else:
+            T,E,O = observations.shape
+        if self.ALE:
+            observations_flat = observations.reshape(T*E, C,H,W)    # [T*E] = rollout_length
+        else:
+            observations_flat = observations.reshape(T*E, O)        # [T*E] = rollout_length
 
-        observations_flat = observations.reshape(T*E, O)    # [T*E] = rollout_length
         actions_flat = actions.reshape(T*E)                 # [T*E] = rollout_length
         old_log_probs_flat = old_log_probs.reshape(T*E)     # [T*E] = rollout_length
         advantages_flat = advantages.reshape(T*E)           # [T*E] = rollout_length
@@ -247,8 +256,8 @@ class Agent():
                     # Mixing into Existing Loss
                     mixed_aux_loss = aux_mix*L_penalty + (1-aux_mix)*L_margin_spread
                     # print("Policy loss before:", policy_loss.mean().item())
-                    policy_loss = (1- aux_coeff * mixed_aux_loss)*policy_loss       # comment if additive aux loss
-                    # policy_loss = policy_loss + aux_coeff*mixed_aux_loss          # uncomment if additive aux loss
+                    # policy_loss = (1- aux_coeff * mixed_aux_loss)*policy_loss       # comment if additive aux loss
+                    policy_loss = policy_loss + aux_coeff*mixed_aux_loss          # uncomment if additive aux loss
                     # print("Policy loss after:", policy_loss.mean().item())
 
                 policy_loss = policy_loss.mean()                                    # [] scalar, batch-wise averaging

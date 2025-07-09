@@ -11,18 +11,10 @@ NETWORK_CONFIGS = {
         'medium' : [256, 128, 64],
         'large' : [512, 256, 128, 64],
     },
-    'cnn' : {           # not yet tested, these are sample architectures
-        'small' : {
-            'conv_layers' : [(16, 3, 1, 1), (32, 3, 1, 1)],  # (out_channels, kernel_size, stride, padding)
-            'fc_layers' : [128],
-        },
-        'medium' : {
-            'conv_layers' : [(16, 3, 1, 1), (32, 3, 1, 1), (64, 3, 1, 1)],  # (out_channels, kernel_size, stride, padding)
-            'fc_layers' : [128],
-        },
-        'large' : {
-            'conv_layers' : [(16, 3, 1, 1), (32, 3, 1, 1), (64, 3, 1, 1), (128, 3, 1, 1)],  # (out_channels, kernel_size, stride, padding)
-            'fc_layers' : [256, 128],
+    'cnn' : {
+        'ALE' : {
+            'conv_layers' : [(32, 8, 4, 0), (64, 4, 2, 0), (64, 3, 1, 0)], # (out_channels, kernel_size, stride, padding)
+            'fc_layers' : [512],
         },
     }
 }
@@ -44,7 +36,10 @@ def create_value_network(input_size: int, config: dict[str, Any])->ValueNetwork:
                         name=config['value_net_size'])
     
     elif config['network_type'] == 'cnn':
-        return ValueCNN()
+        cfg = NETWORK_CONFIGS[config['network_type']][config['policy_net_size']]
+        conv_layers = cfg['conv_layers']
+        fc_layers = cfg['fc_layers']
+        return ValueCNN(4, 84, 84, conv_layers, fc_layers)
     
 def create_policy_network(input_size: int, output_size: int, config: dict[str, Any])->PolicyNetwork:
     """Creates and returns a Policy Network with the architecture that was specified in the configuration file
@@ -126,13 +121,19 @@ def create_policy_network(input_size: int, output_size: int, config: dict[str, A
                            name=config['policy_net_size'],
                            N = output_size)
         
-    elif config['policy_type'] == 'cnn':
+    elif config['network_type'] == 'cnn':        # input shape is hardcoded for ALE environments only: 4x84x84
+
+        cfg = NETWORK_CONFIGS[config['network_type']][config['policy_net_size']]
+        conv_layers = cfg['conv_layers']
+        fc_layers = cfg['fc_layers']
 
         if config['policy_type'] == 'logits':
-            return LogitsCNN()
-        elif config['policy_type'] == 'GNN':
-            return GNN_CNN()
-        elif config['policy_type'] == 'GNN_K':
-            return GNN_K_CNN()
+            return LogitsCNN(output_size, 4, 84, 84, conv_layers, fc_layers)
+        
+        # elif config['policy_type'] == 'GNN':      # no image-based experiments for GNN and GNN_K methods.
+        #     return GNN_CNN()
+        # elif config['policy_type'] == 'GNN_K':
+        #     return GNN_K_CNN()
+
         elif config['policy_type'] == 'GNN_N':
-            return GNN_N_CNN()
+            return GNN_N_CNN(output_size, 4, 84, 84, conv_layers, fc_layers)

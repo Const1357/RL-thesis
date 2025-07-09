@@ -2,7 +2,7 @@
 
 command="$1"
 
-for i in {1..5}; do
+for i in {1..3}; do
     echo "Run #$i"
     eval "$command"
 done

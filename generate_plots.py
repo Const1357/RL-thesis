@@ -9,13 +9,14 @@ import re
 
 sns.set_style('darkgrid')
 
-environments = ['CartPole-v1', 'Pendulum-v1']
+environments = ['CartPole-v1', 'Pendulum-v1', 'ALE/Pong-v5']
 # environments = ['CartPole-v1']
 # environments = ['Pendulum-v1']
 
 standard_environments = {
     'CartPole-v1' : 'CartPole-v1',
-    'Pendulum-v1' : 'Pendulum-v1 (Discretized)'
+    'Pendulum-v1' : 'Pendulum-v1 (Discretized)',
+    'ALE/Pong-v5' : 'Pong-v5',
 }
 
 # per environment constants:
@@ -40,6 +41,18 @@ CONSTANTS = {
         'ytick_interval': 200,
         'top_offset' : 0,
         'bot_offset' : 0,
+        'left_offset' : -3,
+        'right_offset' : 3,
+    },
+
+    'ALE/Pong-v5': {
+        'num_episodes' : 400,
+        'max_reward' : 21,
+        'min_reward' : -21,
+        'xtick_interval': 25,
+        'ytick_interval': 3,
+        'top_offset' : 0.5,
+        'bot_offset' : 0.2,
         'left_offset' : -3,
         'right_offset' : 3,
     }
@@ -232,7 +245,7 @@ for env in environments:
         plt.xticks(range(0, C['num_episodes']+1, C['xtick_interval']))
         plt.yticks(range(C['min_reward'],C['max_reward']+1, C['ytick_interval']))
 
-        plt.title(f'Rewards over Episodes for {env} ({standardize_mod(mod)})')
+        plt.title(f'Rewards over Episodes for {standard_environments[env]} ({standardize_mod(mod)})')
         plt.xlabel('Episode')
         plt.ylabel('Reward')
         plt.legend(loc='upper left')

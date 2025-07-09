@@ -76,10 +76,11 @@ class Trainer():
             trajectory = TrajectoryBuffer(rollout_steps, self.num_envs, self.obs_dim)
 
             # Reset envs
-            obs, infos = self.env.reset()                                # [E, O]
-            obs = torch.tensor(obs, dtype=torch.float32, device=device)  # to tensor
-            if obs.dim() == 2:
+            obs, infos = self.env.reset()                                   # [E, O]
+            obs = torch.tensor(obs, dtype=torch.float32, device=device)     # to tensor
+            if obs.dim() == 2 or obs.dim() == 4:                            # O = [H, W, C] if CNN => 1 -> 3 => 2 -> 4
                 obs = obs.unsqueeze(0)                                      # [1, E, O] adding batch dim for forward pass through network
+
 
             # for logging (only for completed episodes)
             ep_rewards   = [0.0] * self.num_envs
@@ -94,22 +95,25 @@ class Trainer():
             # actual rollout here
             while trajectory.ptr < rollout_steps:
                 
+                if obs.dim() == 2 or obs.dim() == 4:                            # O = [H, W, C] if CNN => 1 -> 3 => 2 -> 4
+                    obs = obs.unsqueeze(0)                                      # [1, E, O] adding batch dim for forward pass through network
+
                 actions, logps, values, entropies = self.agent.actBatched(obs)  # forward pass through actor critic networks
 
                 # env step
                 next_obs, rewards, terminated, truncated, infos = self.env.step(actions.detach().cpu().numpy())
 
                 next_obs = torch.tensor(next_obs, dtype=torch.float32, device=device)
-                if next_obs.dim() == 2:
+                if next_obs.dim() == 2 or obs.dim() == 4:
                     next_obs = next_obs.unsqueeze(0)    # adding batch dim
 
                 # done mask (total batch consists of multiple episodes, compute gae correctly without episodes bleeding into each other)
                 done_mask = torch.tensor([ter or tru for ter, tru in zip(terminated, truncated)],dtype=torch.float32, device=device)
 
-                if obs.dim() == 3:
+                if obs.dim() == 3 or obs.dim() == 5:
                     obs = obs.squeeze(0)    # prepare to add to buffer, remove batch_dim
 
-                if values.dim() == 2:
+                if values.dim() == 2 or values.dim() == 4:
                     values = values.squeeze(0)  # prepare to add to buffer, remove batch_dim
 
                 # entry is added to buffer

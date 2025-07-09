@@ -7,7 +7,7 @@ class TrajectoryBuffer:
     Buffers transitions in fixed-size GPU tensors and computes
     advantages (GAE) and returns for PPO updates.
     """
-    def __init__(self, rollout_steps: int, num_envs: int, obs_dim: int):
+    def __init__(self, rollout_steps: int, num_envs: int, obs_dim: int | tuple):
         self.rollout_steps = rollout_steps
         self.num_envs = num_envs
         self.obs_dim = obs_dim
@@ -18,7 +18,11 @@ class TrajectoryBuffer:
         """Clears buffer and allocates fresh tensors on device."""
         self.ptr = 0  # insertion pointer
         # pre-allocate buffers
-        self.observations  = torch.empty((self.rollout_steps, self.num_envs, self.obs_dim), device=self.device)
+        if type(self.obs_dim) == int:
+            self.observations = torch.empty((self.rollout_steps, self.num_envs, self.obs_dim), device=self.device)
+        elif type(self.obs_dim) == tuple:
+            self.observations = torch.empty((self.rollout_steps, self.num_envs, *self.obs_dim), device=self.device)
+
         self.actions  = torch.empty((self.rollout_steps, self.num_envs), dtype=torch.long, device=self.device)
         self.log_probs = torch.empty((self.rollout_steps, self.num_envs), device=self.device)
         self.values  = torch.empty((self.rollout_steps, self.num_envs), device=self.device)

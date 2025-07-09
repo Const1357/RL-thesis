@@ -1,5 +1,5 @@
 # pong_GNN_N_.yaml
-experiment_name: pong_GNN_N_cnn
+experiment_name: pong_GNN_N_entropy_cnn
 
 network_type: cnn
 policy_type: GNN_N
@@ -13,4 +13,4 @@ aux_loss_kwargs:
 
 # clip_grad: 0.5
 
-entropy_coef: 0.005
+entropy_coef: 0.01

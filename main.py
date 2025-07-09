@@ -1,8 +1,7 @@
 from Utilities import *
 import gymnasium as gym
 from gymnasium.vector import SyncVectorEnv
-from gymnasium.wrappers import FrameStackObservation
-from stable_baselines3.common.atari_wrappers import AtariWrapper
+from gymnasium.wrappers import FrameStackObservation, ResizeObservation, TimeLimit
 
 from Agent import Agent
 from Trainer import Trainer
@@ -31,13 +30,24 @@ def make_env(name, config):
     # used for multiple environments
     def _thunk():
         print(name)
-        env = gym.make(name)
+        
+        if 'ALE' in name:
+            env = gym.make(name, frameskip=1)
+        else:
+            env = gym.make(name)
+            
         if config['quantize']:
             env = BoxToDiscreteWrapper(env, config['num_bins'])
 
         if 'atari' in config:
-            env = AtariWrapper(env)
+            env = gym.wrappers.AtariPreprocessing(
+                env,
+                grayscale_obs=True,
+                scale_obs=True,     # normalize to [0,1]
+                frame_skip=4,
+            )
             env = FrameStackObservation(env, stack_size=config['atari']['stack_size'])
+            env = TimeLimit(env, max_episode_steps=config['max_episode_length'])
 
         return env
     return _thunk
@@ -54,15 +64,16 @@ def main():
 
     print(f"EXPERIMENT NAME = {EXPERIMENT_NAME}")
 
-    env_fns = [make_env(ENV_NAME, config) for _ in range(config['num_envs'])]   # num_envs:              E
+    env_fns = [make_env(ENV_NAME, config) for _ in range(config['num_envs'])]   # num_envs:      E
     env = SyncVectorEnv(env_fns)
 
-    observation_space_size = env.single_observation_space.shape[0]      # observation_space dim: O 
+    observation_space_size = env.single_observation_space.shape[0]      # observation_space dim: O (ignored for ALE. hardcoded C x H x W = 4 x 84 x 84)
     action_space_size = env.single_action_space.n                       # action_space dim:      A
 
     # Actor Critic networks instantiation based on configuration
     policy_net = create_policy_network(input_size=observation_space_size, output_size=action_space_size, config=config).to(device)
     value_net = create_value_network(input_size=observation_space_size, config=config).to(device)
+    # input_size is ignored for ALE configurations
     
     # Agent Instantiation based on configuration
     agent = Agent(
@@ -78,7 +89,7 @@ def main():
         experiment_name=EXPERIMENT_NAME,
         experiment_tag=TAG,
         agent= agent,
-        obs_dim=observation_space_size,
+        obs_dim=(4, 84, 84) if config['policy_net_size'] == 'ALE' else observation_space_size,
         config=config
     )
 
