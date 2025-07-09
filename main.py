@@ -1,7 +1,7 @@
 from Utilities import *
 import gymnasium as gym
 from gymnasium.vector import SyncVectorEnv
-from gymnasium.wrappers import FrameStackObservation, ResizeObservation, TimeLimit
+from gymnasium.wrappers import FrameStackObservation, TimeLimit, Autoreset
 
 from Agent import Agent
 from Trainer import Trainer
@@ -35,7 +35,7 @@ def make_env(name, config):
             env = gym.make(name, frameskip=1)
         else:
             env = gym.make(name)
-            
+
         if config['quantize']:
             env = BoxToDiscreteWrapper(env, config['num_bins'])
 
@@ -47,8 +47,10 @@ def make_env(name, config):
                 frame_skip=4,
             )
             env = FrameStackObservation(env, stack_size=config['atari']['stack_size'])
-            env = TimeLimit(env, max_episode_steps=config['max_episode_length'])
-
+            env = RewardClippingWrapper(env, min=-1, max=1)
+        
+        env = TimeLimit(env, max_episode_steps=config['max_episode_length'])
+        env = Autoreset(env)
         return env
     return _thunk
 
@@ -67,6 +69,12 @@ def main():
     env_fns = [make_env(ENV_NAME, config) for _ in range(config['num_envs'])]   # num_envs:      E
     env = SyncVectorEnv(env_fns)
 
+    log_env_fns = [make_env(ENV_NAME, config) for _ in range(config['num_envs'])]   # num_envs:      E
+    log_env = SyncVectorEnv(log_env_fns)
+
+    env.reset(seed=0)
+    log_env.reset(seed=1000)
+
     observation_space_size = env.single_observation_space.shape[0]      # observation_space dim: O (ignored for ALE. hardcoded C x H x W = 4 x 84 x 84)
     action_space_size = env.single_action_space.n                       # action_space dim:      A
 
@@ -84,8 +92,9 @@ def main():
 
     # Trainer Instantiation based on configuration
     trainer = Trainer(
-        env= env,
-        env_name = ENV_NAME,
+        env=env,
+        log_env=log_env,
+        env_name=ENV_NAME,
         experiment_name=EXPERIMENT_NAME,
         experiment_tag=TAG,
         agent= agent,

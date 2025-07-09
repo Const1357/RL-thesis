@@ -13,4 +13,4 @@ aux_loss_kwargs:
 
 # clip_grad: 0.5
 
-entropy_coef: 0.01
+entropy_coef: 0.005

@@ -313,3 +313,13 @@ class BoxToDiscreteWrapper(gym.ActionWrapper):
 
     def action(self, action_idx):
         return self.actions[action_idx]
+
+# Wrapper class to clip reward to [-1, 1] (used for ALE pong)
+class RewardClippingWrapper(gym.RewardWrapper):
+    def __init__(self, env, min=-1, max=1):
+        super().__init__(env)
+        self._min = -1
+        self._max = 1
+
+    def reward(self, reward):
+        return max(min(reward, self._max), self._min)

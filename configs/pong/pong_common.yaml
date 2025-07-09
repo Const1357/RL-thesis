@@ -2,7 +2,7 @@
 
 env: ALE/Pong-v5
 render: False
-num_envs: 16
+num_envs: 8
 
 atari:
   stack_size: 4
@@ -16,7 +16,7 @@ policy_net_size: ALE
 clip_grad: 0
 
 value_clip: 0.1
-policy_clip: 0.2
+policy_clip: 0.1
 value_lr: 0.001
 policy_lr: 0.0003
 gamma: 0.99
@@ -40,9 +40,9 @@ noise_scheduler_kwargs:
 
 batch_size: 256
 max_epochs: 4
-num_episodes: 400
-max_episode_length: 512   # truncate at 512 steps (with frameskip=4)
-rollout_length: 8192      # 16 * 128, 128 steps with frameskip=4 
+num_episodes: 15000
+max_episode_length: 5000  # do not truncate
+rollout_length: 1024      # 8 * 128, 128 steps with frameskip=4 
 
 # 200 episodes (updates) * 24000 steps per episode = 4.8M total steps
 # each of the 6 environments is allowed 4k steps (rollout_length // num_envs)
