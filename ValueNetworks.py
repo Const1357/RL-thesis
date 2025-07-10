@@ -72,4 +72,5 @@ class ValueCNN(ValueNetwork):
         x = x.view(x.size(0), -1)   # flattening
         x = self.fc(x)
         value = self.head(x).view(B, E, -1)    # converting [B x E, rest] -> [B, E, rest] to match the rest of the implementation
+        # print(f"[Value]: {value[0,0].item()}")
         return value

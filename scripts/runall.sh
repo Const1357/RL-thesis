@@ -12,5 +12,5 @@
 #     done
 # done
 
-./scripts/gather5.sh "./scripts/runner.sh pong logits"
-./scripts/gather5.sh "./scripts/runner.sh pong GNN_N"
+./scripts/gather5.sh "./scripts/runner.sh pong logits entropy"
+./scripts/gather5.sh "./scripts/runner.sh pong GNN_N entropy"

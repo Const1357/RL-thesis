@@ -233,7 +233,7 @@ def timeit(fn):
         t0 = time.perf_counter()
         out = fn(*args, **kwargs)
         t1 = time.perf_counter()
-        print(f"[TIME] {fn.__name__} took {t1-t0:.4f}s")
+        # print(f"[TIME] {fn.__name__} took {t1-t0:.4f}s")
         return out
     return wrapped
 

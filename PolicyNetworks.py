@@ -260,8 +260,13 @@ class LogitsCNN(PolicyNetwork):
         self.head = nn.Linear(in_features, output_size)     # output_size = N (action space size)
 
         # Initialization
-        # nn.init.constant_(self.head.bias, 0.0)
-        # nn.init.orthogonal_(self.head.weight, gain=1.0)
+        nn.init.constant_(self.head.bias, 0.0)
+        nn.init.orthogonal_(self.head.weight, gain=1.412)
+
+        # print("Trainable parameters:")
+        # for name, param in self.named_parameters():
+        #     if param.requires_grad:
+        #         print(f"{name:30} shape={tuple(param.shape)}   grad={param.grad}")
 
     def forward(self, observation: torch.Tensor):
         

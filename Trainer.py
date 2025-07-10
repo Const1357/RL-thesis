@@ -62,6 +62,8 @@ class Trainer():
     @timeit
     def rollout(self, num_steps: int)->TrajectoryBuffer:
         """
+        THE DOCSTRING IS OUTDATED. TODO: UPDATE IT.
+
         Vectorized rollout using the preallocated TrajectoryBuffer.\\
         Collects exactly num_steps total env steps across self.num_envs envs.
         
@@ -290,15 +292,19 @@ class Trainer():
                 self.data['noise_stds_curve'].append(noise_std)
 
                 # console logging
-                print(f"Episode {ep+1}/{self.num_episodes}:")
+                print(f"Episode {ep+1:0{len(str(self.num_episodes))}d}/{self.num_episodes}: ---------------------------------------------------------------- LOGGING")
                 print(f" - Reward  min: {min_r:.1f}  avg: <{avg_r:.1f}>  max: {max_r:.1f}  std: <{std_r:.2f}>")
                 print(f" - Entropy min: {min_e:.3f} avg: <{avg_e:.3f}> max: {max_e:.3f} std: <{std_e:.3f}>")
                 print(f" - EpisodeLength avg: {avg_len:.1f}")
                 print(f" - PolicyLoss: {policy_loss:.6f}  ValueLoss: {value_loss:.6f}")
                 print(f" - Noise std: {noise_std:.4f}")
+                print(f"----------------------------------------------------------------------------------------")
 
                 # step noise scheduler
                 self.agent.policy_noise_scheduler.step(avg_r)
+            else:
+                print(f"Episode {ep+1:0{len(str(self.num_episodes))}d}/{self.num_episodes}:")
+                print(f" - PolicyLoss: {policy_loss:.6f}  ValueLoss: {value_loss:.6f}")
 
         return self.data    # dictionary of collected data
         

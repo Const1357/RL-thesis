@@ -92,6 +92,8 @@ class Agent():
         log_probs = probs.log_prob(actions).squeeze(0)      # [1, E] -> [E]
         entropies = probs.entropy().squeeze(0)              # [1, E] -> [E]
 
+        # print("[Logits]:", raw[0, 0].detach().cpu().numpy())
+
         return actions, log_probs, values, entropies
     
     @timeit
@@ -256,8 +258,8 @@ class Agent():
                     # Mixing into Existing Loss
                     mixed_aux_loss = aux_mix*L_penalty + (1-aux_mix)*L_margin_spread
                     # print("Policy loss before:", policy_loss.mean().item())
-                    # policy_loss = (1- aux_coeff * mixed_aux_loss)*policy_loss       # comment if additive aux loss
-                    policy_loss = policy_loss + aux_coeff*mixed_aux_loss          # uncomment if additive aux loss
+                    policy_loss = (1- aux_coeff * mixed_aux_loss)*policy_loss       # comment if additive aux loss
+                    # policy_loss = policy_loss + aux_coeff*mixed_aux_loss          # uncomment if additive aux loss
                     # print("Policy loss after:", policy_loss.mean().item())
 
                 policy_loss = policy_loss.mean()                                    # [] scalar, batch-wise averaging
@@ -271,6 +273,12 @@ class Agent():
                 policy_loss = torch.nan_to_num(policy_loss, nan=0.0, posinf=10.0, neginf=-10.0)
 
                 policy_loss.backward()
+
+                # for name, param in self.policy_net.named_parameters():
+                #     if param.grad is not None:
+                #         print(f"{name}: grad norm = {param.grad.norm():.6f}")
+                #     else:
+                #         print(f"{name}: grad = None")
 
                 if self.config['clip_grad'] != 0:
                     torch.nn.utils.clip_grad_norm_(self.policy_net.parameters(), max_norm=self.config['clip_grad']) # Gradient Clipping (if specified in config)
@@ -289,7 +297,7 @@ class Agent():
         
         self.sync_policy_nets()
 
-        print(f"Policy optimized in {n_epochs+1} epochs in {total_steps} batch updates.")   # to see if KL condition was met
+        # print(f"Policy optimized in {n_epochs+1} epochs in {total_steps} batch updates.")   # to see if KL condition was met
 
         return total_policy_loss/total_steps
    

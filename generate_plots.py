@@ -46,7 +46,7 @@ CONSTANTS = {
     },
 
     'ALE/Pong-v5': {
-        'num_episodes' : 400,
+        'num_episodes' : 800,
         'max_reward' : 21,
         'min_reward' : -21,
         'xtick_interval': 25,

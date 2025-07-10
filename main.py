@@ -47,7 +47,7 @@ def make_env(name, config):
                 scale_obs=True,     # normalize to [0,1]
                 frame_skip=3,
             )
-            env = RewardClippingWrapper(env, min=-1, max=1)
+            # env = RewardClippingWrapper(env, min=-1, max=1)
             env = FrameStackObservation(env, stack_size=config['atari']['stack_size'])
         
         # env = Autoreset(env)

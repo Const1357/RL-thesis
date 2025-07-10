@@ -2,7 +2,7 @@
 
 env: CartPole-v1
 render: False
-num_envs: 4
+num_envs: 16
 
 quantize: False
 

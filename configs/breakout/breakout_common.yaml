@@ -1,6 +1,6 @@
-# pong_common.yaml
+# breakout_common.yaml
 
-env: ALE/Pong-v5
+env: ALE/Breakout-v5
 render: False
 num_envs: 16
 
@@ -13,7 +13,7 @@ quantize: False
 # policy_type: logits
 value_net_size: ALE
 policy_net_size: ALE
-clip_grad: 0
+clip_grad: 0.5
 
 value_clip: 0.1
 policy_clip: 0.1
@@ -40,11 +40,6 @@ noise_scheduler_kwargs:
 
 batch_size: 256
 max_epochs: 4
-num_episodes: 12000
-max_episode_length: 5000  # do not truncate
-rollout_length: 2048      # 16 * 128, 128 steps with frameskip=4 
-
-# 200 episodes (updates) * 24000 steps per episode = 4.8M total steps
-# each of the 6 environments is allowed 4k steps (rollout_length // num_envs)
-# an episode is truncated early at 2.5k steps => each env can complete at least one full episode
-# Each env will complete at least 1.6 episodes.
+num_episodes: 2500
+max_episode_length: 10000
+rollout_length: 1024
