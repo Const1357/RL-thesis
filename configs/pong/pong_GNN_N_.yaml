@@ -4,6 +4,8 @@ experiment_name: pong_GNN_N_cnn
 network_type: cnn
 policy_type: GNN_N
 
+noise_coeff: 0.05
+
 aux_loss_kwargs:
   a: 0.1
   b: 0.1

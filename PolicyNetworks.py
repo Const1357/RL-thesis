@@ -172,6 +172,7 @@ class GNN_N_MLP(PolicyNetwork):
                  input_size,
                  hidden_layers,
                  N,         # action space size (N)
+                 noise_coeff = 0.05,
                  name = '',):
         super(GNN_N_MLP, self).__init__()
 
@@ -179,6 +180,7 @@ class GNN_N_MLP(PolicyNetwork):
         self.input_size = input_size
         self.output_size = 2*N            # (mean, variance) for each of N actions
         self._name = name
+        self.noise_coeff = noise_coeff
 
         # Network that outputs 2 values: mean and std
         layers = []
@@ -192,31 +194,31 @@ class GNN_N_MLP(PolicyNetwork):
 
     def forward(self, observation: torch.Tensor):
         
-        B, E, O = observation.shape                                     # [B, E, O]
+        B, O = observation.shape                                        # [B, O]
 
         # for name, p in self.named_parameters():
         #     if torch.isnan(p).any() or torch.isinf(p).any():
         #         print(f"PARAM NaN/Inf at {name}")
 
-        out = self.network(observation)                                 # [B, E, 2*N] -> 2*N= (0.μ, 1.σ)*N
+        out = self.network(observation)                                 # [B, 2*N] -> 2*N= (0.μ, 1.σ)*N
 
-        means = out[:,:,:self.N]                                        # [B, E, N]
+        means = out[:,:self.N]                                          # [B, N]
 
-        stds = out[:,:,self.N:2*self.N]                                 # [B, E, N]
+        stds = out[:,self.N:2*self.N]                                   # [B, N]
 
-        stds = fn.softplus(stds) + tol                                  # [B, E, N]  softplus for numerical stability
+        stds = fn.softplus(stds) + tol                                  # [B, N]  softplus for numerical stability
         stds = stds.clamp_min(tol)
-        # vars = stds**2                                                # [B, E, N]
+
         normal = torch.distributions.Normal(means, stds)
         # sample a z-score from each gaussian for each action (N) using the reparametrization trick
         samples = normal.rsample()
-        samples = means + 0.05*(samples-means)                          # [B, E, N]     # 0.3 SHOULD BE NOISE COEF
+        samples = means + self.noise_coeff*(samples-means)              # [B, N]    # samples stay close to the mean
 
         logits = samples.clamp(-20.0, 20.0)
 
         dist = Categorical(logits=logits)
 
-        return dist, (means, stds)                                      # [B, E, N]
+        return dist, (means, stds)                                      # [B, N]
 
 
 ########### CNNs ############
@@ -305,10 +307,11 @@ class LogitsCNN(PolicyNetwork):
 
 # GNN-N CNN
 class GNN_N_CNN(PolicyNetwork):
-    def __init__(self, output_size: int, input_channels: int, input_height: int, input_width: int, conv_layers: list, fc_layers: list):
+    def __init__(self, output_size: int, input_channels: int, input_height: int, input_width: int, conv_layers: list, fc_layers: list, noise_coeff=0.05):
         super(GNN_N_CNN, self).__init__()
 
         self.N = output_size
+        self.noise_coeff = 0.05
 
         in_channels = input_channels
 
@@ -363,7 +366,7 @@ class GNN_N_CNN(PolicyNetwork):
         normal = torch.distributions.Normal(means, stds)
         # sample a z-score from each gaussian for each action (N) using the reparametrization trick
         samples = normal.rsample()
-        samples = means + 0.05*(samples-means)                          # [B, E, N]     0.05 is the strength of the noise.
+        samples = means + self.noise_coeff*(samples-means)              # [B, E, N]     0.05 is the strength of the noise.
 
         logits = samples.clamp(-20.0, 20.0)
 

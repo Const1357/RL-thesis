@@ -119,7 +119,8 @@ def create_policy_network(input_size: int, output_size: int, config: dict[str, A
             return GNN_N_MLP(input_size=input_size,
                            hidden_layers=NETWORK_CONFIGS[config['network_type']][config['policy_net_size']],
                            name=config['policy_net_size'],
-                           N = output_size)
+                           N = output_size,
+                           noise_coeff=config['noise_coeff'])
         
     elif config['network_type'] == 'cnn':        # input shape is hardcoded for ALE environments only: 4x84x84 (grayscale framestack)
 
@@ -136,4 +137,4 @@ def create_policy_network(input_size: int, output_size: int, config: dict[str, A
         #     return GNN_K_CNN()
 
         elif config['policy_type'] == 'GNN_N':
-            return GNN_N_CNN(output_size, 4, 84, 84, conv_layers, fc_layers)
+            return GNN_N_CNN(output_size, 4, 84, 84, conv_layers, fc_layers, noise_coeff=config['noise_coeff'])
