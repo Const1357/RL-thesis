@@ -163,7 +163,7 @@ class Agent():
         assert not old_log_probs.requires_grad
         
 
-        # observations  [T, E, O(obs_dim)]
+        # observations  [T, E, O(obs_dim)]          O can also be C, H, W if image based.
         # actions       [T, E]
         # old_log_probs [T, E]
         # advantages    [T, E]
@@ -208,6 +208,8 @@ class Agent():
                 # batch_actions         [B]
                 # batch_old_log_probs   [B]    
                 # batch_advantages      [B]
+
+                # print('[BATCH OBS SHAPE]', batch_observations.shape)
 
                 batch_old_log_probs = batch_old_log_probs.detach()      # ensuring no gradient flow from old predictions
 

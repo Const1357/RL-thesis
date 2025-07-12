@@ -260,8 +260,8 @@ class LogitsCNN(PolicyNetwork):
         self.head = nn.Linear(in_features, output_size)     # output_size = N (action space size)
 
         # Initialization
-        nn.init.constant_(self.head.bias, 0.0)
-        nn.init.orthogonal_(self.head.weight, gain=1.412)
+        # nn.init.constant_(self.head.bias, 0.0)
+        # nn.init.orthogonal_(self.head.weight, gain=1.412)
 
         # print("Trainable parameters:")
         # for name, param in self.named_parameters():
@@ -272,13 +272,22 @@ class LogitsCNN(PolicyNetwork):
         
         # print(observation.shape)
         B, E, C, H, W = observation.shape
+        # print('[SHAPE]',observation.shape)
+
+        # print('[OBS]', observation)
+
+        # obs0 = observation[0, 0]
+        # obs1 = observation[0, 1]
+        # print("Identical across envs?", torch.equal(obs0, obs1))
 
         x = observation.view(B*E, C, H, W)  # join batch and env dimensions, conv2d expects [B, C, H, W] input
 
         x = self.conv(x)
         x = x.view(x.size(0), -1)   # flattening
         x = self.fc(x)
-        logits = self.head(x).view(B, E, -1)    # converting [B x E, rest] -> [B, E, rest] to match the rest of the implementation
+        x = self.head(x)
+        logits = x.view(B, E, -1)    # converting [B x E, rest] -> [B, E, rest] to match the rest of the implementation
+        # print('[LOGITS]', logits[0])
         probs = Categorical(logits=logits)
         return probs, logits
 

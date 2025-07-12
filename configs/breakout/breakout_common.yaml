@@ -13,7 +13,7 @@ quantize: False
 # policy_type: logits
 value_net_size: ALE
 policy_net_size: ALE
-clip_grad: 0.5
+clip_grad: 0
 
 value_clip: 0.1
 policy_clip: 0.1

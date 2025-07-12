@@ -5,12 +5,14 @@ import re
 from numpy import mean, std
 from math import *
 import numpy as np
-import ale_py  # this registers ALE environments internally
+import ale_py  # this registers ALE environments internally, DO NOT DELETE
 import gymnasium as gym
 
 from typing import Any, Tuple
 
 import time
+
+import cv2
 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -233,7 +235,7 @@ def timeit(fn):
         t0 = time.perf_counter()
         out = fn(*args, **kwargs)
         t1 = time.perf_counter()
-        # print(f"[TIME] {fn.__name__} took {t1-t0:.4f}s")
+        print(f"[TIME] {fn.__name__} took {t1-t0:.4f}s")
         return out
     return wrapped
 
@@ -323,3 +325,4 @@ class RewardClippingWrapper(gym.RewardWrapper):
 
     def reward(self, reward):
         return max(min(reward, self._max), self._min)
+    

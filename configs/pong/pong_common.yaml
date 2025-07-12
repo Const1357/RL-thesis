@@ -38,13 +38,10 @@ noise_scheduler_kwargs:
   suppress_factor: 0.85
   frozen: true
 
-batch_size: 256
-max_epochs: 4
+batch_size: 512           # 32 * num_envs
+max_epochs: 3
 num_episodes: 12000
 max_episode_length: 5000  # do not truncate
-rollout_length: 2048      # 16 * 128, 128 steps with frameskip=4 
+rollout_length: 2048      # 16 * 128 (num_envs=16 * Horizon=128)
 
-# 200 episodes (updates) * 24000 steps per episode = 4.8M total steps
-# each of the 6 environments is allowed 4k steps (rollout_length // num_envs)
-# an episode is truncated early at 2.5k steps => each env can complete at least one full episode
-# Each env will complete at least 1.6 episodes.
+# https://arxiv.org/pdf/1707.06347 Appendix A table 5

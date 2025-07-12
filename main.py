@@ -1,7 +1,7 @@
 from Utilities import *
 import gymnasium as gym
 from gymnasium.vector import SyncVectorEnv
-from gymnasium.wrappers import FrameStackObservation, TimeLimit, Autoreset
+from gymnasium.wrappers import FrameStackObservation, TimeLimit, RescaleObservation, ResizeObservation
 
 from Agent import Agent
 from Trainer import Trainer
@@ -13,6 +13,8 @@ from datetime import datetime
 
 import os
 import pickle
+
+import random
 
 ########################################################################################################################################################
 
@@ -26,13 +28,14 @@ import pickle
 # This implementation can currently support any cartpole-v1-like gym environment. Other environments are yet untesed.
 # I will add configuration files for other environments after completion of all methods. (GNN_N left + continuous)
 
-def make_env(name, config):
+    
+def make_env(name, config, seeds):
     # used for multiple environments
     def _thunk():
         print(name)
         
         if 'ALE' in name:
-            env = gym.make(name, frameskip=1)
+            env = gym.make(name, frameskip=4, obs_type='grayscale', full_action_space=False, repeat_action_probability=0.0)
         else:
             env = gym.make(name)
 
@@ -41,16 +44,13 @@ def make_env(name, config):
 
         env = TimeLimit(env, max_episode_steps=config['max_episode_length'])
         if 'atari' in config:
-            env = gym.wrappers.AtariPreprocessing(
-                env,
-                grayscale_obs=True,
-                scale_obs=True,     # normalize to [0,1]
-                frame_skip=3,
-            )
+
+            env = ResizeObservation(env, shape=(84, 84))           # [84, 84]
+            env = RescaleObservation(env, min_obs=np.zeros((84, 84), dtype=np.float32), max_obs=np.ones((84, 84), dtype=np.float32))    # uint8: [0-255]-> float32: [0-1]
+
             # env = RewardClippingWrapper(env, min=-1, max=1)
             env = FrameStackObservation(env, stack_size=config['atari']['stack_size'])
         
-        # env = Autoreset(env)
         return env
     return _thunk
 
@@ -66,15 +66,27 @@ def main():
 
     print(f"EXPERIMENT NAME = {EXPERIMENT_NAME}")
 
-    env_fns = [make_env(ENV_NAME, config) for _ in range(config['num_envs'])]   # num_envs:      E
+    seed_offset = random.randint(0, 10000)  # ensure subsequent runs are different
+    log_seed_offset = random.randint(10000, 20000)  # ensure subsequent runs are different
+
+    
+    seeds = [seed_offset + 127*i for i in range(config['num_envs'])]
+    log_seeds = [log_seed_offset + 127*i for i in range(config['num_envs'])]
+    print(seeds)
+    print(log_seeds)
+
+    env_fns = [make_env(ENV_NAME, config, seeds) for _ in range(config['num_envs'])]   # num_envs:      E
     env = SyncVectorEnv(env_fns)
 
-    log_env_fns = [make_env(ENV_NAME, config) for _ in range(config['num_envs'])]   # num_envs:      E
+    log_env_fns = [make_env(ENV_NAME, config, log_seeds) for _ in range(config['num_envs'])]   # num_envs:      E
     log_env = SyncVectorEnv(log_env_fns)
 
-    env.reset(seed=0)
-    log_env.reset(seed=1000)
+    for i in range(config['num_envs']):
+        env.envs[i].reset(seed=seeds[i])
+        log_env.envs[i].reset(seed=log_seeds[i])
 
+    print(env.np_random_seed)
+    
     observation_space_size = env.single_observation_space.shape[0]      # observation_space dim: O (ignored for ALE. hardcoded C x H x W = 4 x 84 x 84)
     action_space_size = env.single_action_space.n                       # action_space dim:      A
 
@@ -117,3 +129,29 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
+# https://docs.cleanrl.dev/rl-algorithms/ppo/#implemented-variants
+
+# https://github.com/vwxyzjn/cleanrl/blob/master/cleanrl/ppo_atari.py
+# def make_env(env_id, idx, capture_video, run_name):
+#     def thunk():
+#         if capture_video and idx == 0:
+#             env = gym.make(env_id, render_mode="rgb_array")
+#             env = gym.wrappers.RecordVideo(env, f"videos/{run_name}")
+#         else:
+#             env = gym.make(env_id)
+#         env = gym.wrappers.RecordEpisodeStatistics(env)
+#         env = NoopResetEnv(env, noop_max=30)
+#         env = MaxAndSkipEnv(env, skip=4)
+#         env = EpisodicLifeEnv(env)
+#         if "FIRE" in env.unwrapped.get_action_meanings():
+#             env = FireResetEnv(env)
+#         env = ClipRewardEnv(env)
+#         env = gym.wrappers.ResizeObservation(env, (84, 84))
+#         env = gym.wrappers.GrayScaleObservation(env)
+#         env = gym.wrappers.FrameStack(env, 4)
+#         return env
+
+#     return thunk
