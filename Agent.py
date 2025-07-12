@@ -117,36 +117,48 @@ class Agent():
         """
         # returns = (returns - returns.mean()) / (returns.std() + tol)    # normalizing returns
 
-        eps = self.hyperparameters['value_clip']
+        if (observations.dim() == 5):           # flatten for batch processing with single batch dim
+            B, E, C, H, W = observations.shape
+            observations = observations.view(B*E, C, H, W)      # [B, E, C, H, W] -> [B*E, C, H, W]
+            returns = returns.view(B*E)                         # [B, E] -> [B*E]
 
-        total_loss = 0.0
+        eps = self.hyperparameters['value_clip']
 
         # frozen snapshot of values before optimizing, for clipping (detched)
         with torch.no_grad():
             old_values = self.value_net(observations).squeeze(-1).detach()   # [B, 1] -> [B]
 
+        dataset = torch.utils.data.TensorDataset(observations, returns, old_values)
+        loader = torch.utils.data.DataLoader(dataset, batch_size=self.hyperparameters['batch_size'], shuffle=True)
+
+        total_loss = 0.0
+        total_steps = 0
+
         for _ in range(self.hyperparameters['max_epochs']):
 
-            # B = rollout_length // E(num_envs)
-            values = self.value_net(observations).squeeze(-1)  # [B, 1] -> [B]
-            clipped_values = old_values + torch.clamp(values - old_values, -eps, eps)   # clipping
+            for batch_observations, batch_returns, batch_old_values in loader:
 
-            # MSE Loss
-            unclipped_loss = 0.5 * (values - returns).pow(2)
-            clipped_loss   = 0.5 * (clipped_values - returns).pow(2)
+                # B = rollout_length // E(num_envs)
+                batch_values = self.value_net(batch_observations).squeeze(-1)  # [B, 1] -> [B]
+                batch_clipped_values = batch_old_values + torch.clamp(batch_values - batch_old_values, -eps, eps)   # clipping
 
-            loss = torch.max(unclipped_loss, clipped_loss).mean()
+                # MSE Loss
+                unclipped_loss = 0.5 * (batch_values - batch_returns).pow(2)
+                clipped_loss   = 0.5 * (batch_clipped_values - batch_returns).pow(2)
 
-            # optimizer step
-            self.value_optimizer.zero_grad()
-            loss.backward()
-            if self.config['clip_grad'] != 0:
-                    torch.nn.utils.clip_grad_norm_(self.value_net.parameters(), max_norm=self.config['clip_grad']) # Gradient Clipping (if specified in config)
-            self.value_optimizer.step()
+                loss = torch.max(unclipped_loss, clipped_loss).mean()
 
-            total_loss += loss.item()
+                # optimizer step
+                self.value_optimizer.zero_grad()
+                loss.backward()
+                if self.config['clip_grad'] != 0:
+                        torch.nn.utils.clip_grad_norm_(self.value_net.parameters(), max_norm=self.config['clip_grad']) # Gradient Clipping (if specified in config)
+                self.value_optimizer.step()
 
-        return total_loss / self.hyperparameters['max_epochs']
+                total_loss += loss.item()
+                total_steps += 1
+
+        return total_loss / total_steps
 
 
     # Policy with Flattened T,E = T*E

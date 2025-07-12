@@ -61,16 +61,16 @@ class ValueCNN(ValueNetwork):
 
     def forward(self, observation: torch.Tensor):
 
-        if observation.dim() == 4:
-            observation = observation.unsqueeze(0)  # ensure batched shape [B, ...]
+        # if observation.dim() == 4:
+        #     observation = observation.unsqueeze(0)  # ensure batched shape [B, ...]
         
-        B, E, C, H, W = observation.shape
+        # B, E, C, H, W = observation.shape
 
-        x = observation.view(B*E, C, H, W)  # join batch and env dimensions, conv2d expects [B, C, H, W] input
+        # x = observation.view(B*E, C, H, W)  # join batch and env dimensions, conv2d expects [B, C, H, W] input
 
-        x = self.conv(x)
+        x = self.conv(observation)
         x = x.view(x.size(0), -1)   # flattening
         x = self.fc(x)
-        value = self.head(x).view(B, E, -1)    # converting [B x E, rest] -> [B, E, rest] to match the rest of the implementation
+        value = self.head(x)
         # print(f"[Value]: {value[0,0].item()}")
         return value

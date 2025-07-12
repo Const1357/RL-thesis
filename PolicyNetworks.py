@@ -274,7 +274,7 @@ class LogitsCNN(PolicyNetwork):
     def forward(self, observation: torch.Tensor):
         
         # print(observation.shape)
-        B, E, C, H, W = observation.shape
+        # B, C, H, W = observation.shape
         # print('[SHAPE]',observation.shape)
 
         # print('[OBS]', observation)
@@ -283,13 +283,12 @@ class LogitsCNN(PolicyNetwork):
         # obs1 = observation[0, 1]
         # print("Identical across envs?", torch.equal(obs0, obs1))
 
-        x = observation.view(B*E, C, H, W)  # join batch and env dimensions, conv2d expects [B, C, H, W] input
+        # x = observation.view(B*E, C, H, W)  # join batch and env dimensions, conv2d expects [B, C, H, W] input
 
-        x = self.conv(x)
+        x = self.conv(observation)
         x = x.view(x.size(0), -1)   # flattening
         x = self.fc(x)
-        x = self.head(x)
-        logits = x.view(B, E, -1)    # converting [B x E, rest] -> [B, E, rest] to match the rest of the implementation
+        logits = self.head(x)
         # print('[LOGITS]', logits[0])
         probs = Categorical(logits=logits)
         return probs, logits
@@ -348,28 +347,27 @@ class GNN_N_CNN(PolicyNetwork):
     def forward(self, observation: torch.Tensor):
 
 
-        B, E, C, H, W = observation.shape                               # [B, E, C, H, W]
+        # B, E, C, H, W = observation.shape                               # [B, C, H, W]
         
-        x = observation.view(B*E, C, H, W)  # join batch and env dimensions, conv2d expects [B, C, H, W] input
-        x = self.conv(x)
+        x = self.conv(observation)
         x = x.view(x.size(0), -1)   # flattening
         x = self.fc(x)                                                
-        out = self.head(x).view(B, E, -1)                               # [B, E, 2*N] -> 2*N= (0.μ, 1.σ)*N
+        out = self.head(x)                                              # [B, 2*N] -> 2*N= (0.μ, 1.σ)*N
 
-        means = out[:,:,:self.N]                                        # [B, E, N]
+        means = out[:,:self.N]                                          # [B, N]
 
-        stds = out[:,:,self.N:2*self.N]                                 # [B, E, N]
+        stds = out[:,self.N:2*self.N]                                   # [B, N]
 
-        stds = fn.softplus(stds) + tol                                  # [B, E, N]  softplus for numerical stability
+        stds = fn.softplus(stds) + tol                                  # [B, N]  softplus for numerical stability
         stds = stds.clamp_min(tol)
-        # vars = stds**2                                                # [B, E, N]
+        # vars = stds**2                                                # [B, N]
         normal = torch.distributions.Normal(means, stds)
         # sample a z-score from each gaussian for each action (N) using the reparametrization trick
         samples = normal.rsample()
-        samples = means + self.noise_coeff*(samples-means)              # [B, E, N]     0.05 is the strength of the noise.
+        samples = means + self.noise_coeff*(samples-means)              # [B, N]
 
         logits = samples.clamp(-20.0, 20.0)
 
         dist = Categorical(logits=logits)
 
-        return dist, (means, stds)                                      # [B, E, N]
+        return dist, (means, stds)                                      # [B, N]
