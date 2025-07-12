@@ -123,12 +123,12 @@ class Agent():
 
         # frozen snapshot of values before optimizing, for clipping (detched)
         with torch.no_grad():
-            old_values = self.value_net(observations).squeeze(-1).detach()   # [T, E, 1] -> [T, E]
+            old_values = self.value_net(observations).squeeze(-1).detach()   # [B, 1] -> [B]
 
         for _ in range(self.hyperparameters['max_epochs']):
 
-            # T = rollout_length // E(num_envs)
-            values = self.value_net(observations).squeeze(-1)  # [T, E, 1] -> [T, E]
+            # B = rollout_length // E(num_envs)
+            values = self.value_net(observations).squeeze(-1)  # [B, 1] -> [B]
             clipped_values = old_values + torch.clamp(values - old_values, -eps, eps)   # clipping
 
             # MSE Loss
@@ -171,15 +171,15 @@ class Agent():
         assert not old_log_probs.requires_grad
         
 
-        # observations  [T, E, O(obs_dim)]          O can also be C, H, W if image based.
-        # actions       [T, E]
-        # old_log_probs [T, E]
-        # advantages    [T, E]
+        # observations  [B, O(obs_dim)]          O can also be C, H, W if image based.
+        # actions       [B]
+        # old_log_probs [B]
+        # advantages    [B]
 
         # Constructing a dataset of [B, T, E] is problematic. The point of running multiple environments is to 
-        # merge the results together, therefore we flatten the T,E dimensions to a single T*E dimension.
+        # merge the results together, therefore we flatten the T,E dimensions to a single T*E dimension, but after GAE computation.
 
-        
+
         if self.ALE:
             T,E,C,H,W = observations.shape
         else:
@@ -221,10 +221,11 @@ class Agent():
 
                 batch_old_log_probs = batch_old_log_probs.detach()      # ensuring no gradient flow from old predictions
 
-                # new forward pass for new log probs. Unsqueezing dim 1 because network expects [B, E, O] shape -> [B, 1, O]
-                new_probs, raw = self.policy_net(batch_observations.unsqueeze(1))                           # [B, 1, N] new FORWARD PASS
+                # new forward pass for new log probs.
+                new_probs, raw = self.policy_net(batch_observations)                                        # [B, N] new FORWARD PASS
                 # should squeeze dim 1 of new_probs
-                new_probs = torch.distributions.categorical.Categorical(probs=new_probs.probs.squeeze(1))   # [B, N]
+                new_probs = torch.distributions.categorical.Categorical(probs=new_probs.probs)              # [B, N]
+                # print(new_probs.probs.shape)
         
                 new_log_probs = new_probs.log_prob(batch_actions)       # new log probs                       [B]
                 entropy = new_probs.entropy()                           # entropy for regularization          [B]

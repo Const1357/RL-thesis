@@ -48,7 +48,7 @@ class GNN_MLP(PolicyNetwork):
         self.output_size = 2            # mean, variance
         self._name = name
 
-        self.register_buffer("intervals", torch.tensor(intervals, dtype=torch.float32, device=device).unsqueeze_(0).unsqueeze_(0))   # [1,1,N,2] to be transformed to [B,E,N,2]
+        self.register_buffer("intervals", torch.tensor(intervals, dtype=torch.float32, device=device).unsqueeze_(0))   # [1,N,2] to be transformed to [B,N,2]
         self.register_buffer("mapping", torch.tensor(mapping, dtype=torch.long, device=device))          # (N)
 
         self.xmin = min(intervals, key=lambda x : x[0])[0]     # leftmost in the interval
@@ -66,36 +66,37 @@ class GNN_MLP(PolicyNetwork):
 
     def forward(self, observation: torch.Tensor):
         
-        B, E, O = observation.shape                     # [B, E, O]
+        # B, E, O = observation.shape                     # [B, E, O]
+        B, O = observation.shape                        # [B, O]
 
-        out = self.network(observation)                 # [B, E, 2] -> 2= 0.μ, 1.σ
+        out = self.network(observation)                 # [B, 2] -> 2= 0.μ, 1.σ
 
-        mean = out[:,:,0].unsqueeze(-1).unsqueeze(2)    # [B, E, 1, 1]
-        # mean[..., -1] = tanh_squash_to_interval(mean[..., -1], self.xmin+tol, self.xmax-tol)    # ensure mean is not outside of mapping area.
-        std = out[:,:,1].unsqueeze(-1).unsqueeze(2)     # [B, E, 1, 1]
-        std = fn.softplus(std) + tol                    # [B, E, 1, 1] softplus for numerical stability
+        # expanded to match [B, N, K]
+        mean = out[:, 0].unsqueeze(-1).unsqueeze(-1)     # [B, 1, 1]
+
+        std = out[:, 1].unsqueeze(-1).unsqueeze(-1)      # [B, 1, 1]
+        std = fn.softplus(std) + tol                    # [B, 1, 1] softplus for numerical stability
         std.clamp_min_(tol)
-        # var = std**2                                  # [B, E, 1, 1]
 
-        intervals = self.intervals.expand(B, E, -1, -1) # [B, E, N, 2]
+        intervals = self.intervals.expand(B, -1, -1)    # [B, N, 2] 
 
-        x_from = intervals[:,:,:,0].unsqueeze(-1)       # [B, E, N, 1]
-        x_to   = intervals[:,:,:,1].unsqueeze(-1)       # [B, E, N, 1]
+        x_from = intervals[:, :,0].unsqueeze(-1)       # [B, N, 1]
+        x_to   = intervals[:, :,1].unsqueeze(-1)       # [B, N, 1]
 
         # Integrating over intervals of interest
-        probs = gaussian_integral(mean, std, x_from=x_from, x_to=x_to)  # [B, E, N, 1]
+        probs = gaussian_integral(mean, std, x_from=x_from, x_to=x_to)  # [B, N, 1]
 
         # Normalizing to sum to 1. Z = probs.sum = 1 - rest.sum
-        Z = probs.sum(dim=2, keepdim=True)                  # [B, E, 1, 1] 
-        probs = probs / (Z + tol)                           # [B, E, N, 1]
-        probs = probs.squeeze(-1)                           # [B, E, N]
+        Z = probs.sum(dim=2, keepdim=True)                  # [B, 1, 1] 
+        probs = probs / (Z + tol)                           # [B, N, 1]
+        probs = probs.squeeze(-1)                           # [B, N]
 
         # Mapping
-        probs = probs[:,:, self.mapping]                    # [B, E, N]
+        probs = probs[:, self.mapping]                    # [B, N]
         
         dist = Categorical(probs=probs)
 
-        return dist, (mean.squeeze(-1).squeeze(-1), std.squeeze(-1).squeeze(-1))    # [B, E]
+        return dist, (mean.squeeze(-1), std.squeeze(-1))    # mean,std=[B]
 
 # GNN-K
 class GNN_K_MLP(PolicyNetwork):
@@ -113,7 +114,7 @@ class GNN_K_MLP(PolicyNetwork):
         self.output_size = 3*K            # (weight, mean, variance) for each of K components
         self._name = name
 
-        self.register_buffer("intervals", torch.tensor(intervals, dtype=torch.float32, device=device).unsqueeze_(0).unsqueeze_(0))   # [1,1,N,2] to be transformed to [B,E,N,2]
+        self.register_buffer("intervals", torch.tensor(intervals, dtype=torch.float32, device=device).unsqueeze_(0))   # [1,N,2] to be transformed to [B,N,2]
         self.register_buffer("mapping", torch.tensor(mapping, dtype=torch.long, device=device))          # (N)
 
         self.xmin = min(intervals, key=lambda x : x[0])[0]     # leftmost in the interval
@@ -132,38 +133,38 @@ class GNN_K_MLP(PolicyNetwork):
 
     def forward(self, observation: torch.Tensor):
         
-        B, E, O = observation.shape                                     # [B, E, O]
+        B, O = observation.shape                                        # [B, O]
 
-        out = self.network(observation)                                 # [B, E, 3*K] -> 3*K= (0.μ, 1.σ, 2.w)*K
+        out = self.network(observation)                                 # [B, 3*K] -> 3*K= (0.μ, 1.σ, 2.w)*K
 
-        means = out[:,:,:self.K].unsqueeze(2)                           # [B, E, 1, K]
-        # means[..., -1] = tanh_squash_to_interval(means[..., -1], self.xmin, self.xmax)    # ensure mean is not outside of mapping area.
-        stds = out[:,:,self.K:2*self.K].unsqueeze(2)                    # [B, E, 1, K]
-        stds = fn.softplus(stds) + tol                                  # [B, E, 1, K]  softplus for numerical stability
+        means = out[:, :self.K].unsqueeze(1)                            # [B, 1, K]
+
+        stds = out[:, self.K:2*self.K].unsqueeze(1)                     # [B, 1, K]
+        stds = fn.softplus(stds) + tol                                  # [B, 1, K]  softplus for numerical stability
         stds.clamp_min_(tol)
-        ws = out[:,:,2*self.K:3*self.K].unsqueeze(2)                    # [B, E, 1, K]
-        ws = fn.softmax(ws, dim=3)                                      # softmax weights on K dim to ensure > 0 and sum to 1
-        # vars = stds**2                                                  # [B, E, 1, K]
+        ws = out[:, 2*self.K:3*self.K].unsqueeze(1)                     # [B, 1, K]
+        ws = fn.softmax(ws, dim=-1)                                     # softmax weights on K dim to ensure > 0 and sum to 1
+        # vars = stds**2                                                # [B, 1, K]
 
-        intervals = self.intervals.expand(B, E, -1, -1)                 # [B, E, N, 2] -> batch_dim, num_envs, act_dim, (x_from, x_to).shape=2
+        intervals = self.intervals.expand(B, -1, -1)                    # [B, N, 2] -> batch_dim, num_envs, act_dim, (x_from, x_to).shape=2
 
-        x_from = intervals[:,:,:,0].unsqueeze(-1)                       # [B, E, N, 1]
-        x_to   = intervals[:,:,:,1].unsqueeze(-1)                       # [B, E, N, 1]
+        x_from = intervals[:, :,0].unsqueeze(-1)                        # [B, N, 1]
+        x_to   = intervals[:, :,1].unsqueeze(-1)                        # [B, N, 1]
 
         # Integrating over intervals of interest
-        probs = gaussian_mixture_integral(means, stds, ws, x_from=x_from, x_to=x_to)  # [B, E, N, 1]
+        probs = gaussian_mixture_integral(means, stds, ws, x_from=x_from, x_to=x_to)  # [B, N, 1]
 
         # Normalizing to sum to 1. Z = probs.sum = 1 - rest.sum
-        Z = probs.sum(dim=2, keepdim=True)                                  # [B, E, 1, 1] 
-        probs = probs / (Z + tol)                                           # [B, E, N, 1]
-        probs = probs.squeeze(-1)                                           # [B, E, N]
+        Z = probs.sum(dim=2, keepdim=True)                                  # [B, 1, 1] 
+        probs = probs / (Z + tol)                                           # [B, N, 1]
+        probs = probs.squeeze(-1)                                           # [B, N]
 
         # Mapping
-        probs = probs[:,:, self.mapping]                                    # [B, E, N]
+        probs = probs[:, self.mapping]                                    # [B, N]
 
         dist = Categorical(probs=probs)
 
-        return dist, (means.squeeze(2), stds.squeeze(2), ws.squeeze(2))     # [B, E, K]
+        return dist, (means.squeeze(1), stds.squeeze(1), ws.squeeze(1))     # means,stds,ws=[B, K] (squeeze N dim)
 
 # GNN-N
 class GNN_N_MLP(PolicyNetwork):

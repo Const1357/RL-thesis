@@ -44,6 +44,8 @@ class TrajectoryBuffer:
         """
         Insert one step of data for all environments at the current pointer.
         Each tensor must have shape [E(num_envs), ...].
+
+        The shape is important so as to keep the temporal relationships independent per-env (for correct GAE computation)
         """
         t = self.ptr
         self.observations[t].copy_(observations)
