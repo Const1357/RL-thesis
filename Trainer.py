@@ -93,8 +93,9 @@ class Trainer():
 
                 obs = self.obs
                 
-                if obs.dim() == 2 or obs.dim() == 4:                            # O = [H, W, C] if CNN => 1 -> 3 => 2 -> 4
-                    obs = obs.unsqueeze(0)                                      # [1, E, O] adding batch dim for forward pass through network
+                # if obs.dim() == 2 or obs.dim() == 4:                            # O = [H, W, C] if CNN => 1 -> 3 => 2 -> 4
+                #     obs = obs.unsqueeze(0)                                      # [1, E, O] adding batch dim for forward pass through network
+                # env dim E will act as batch dim B.
 
                 actions, logps, values, entropies = self.agent.actBatched(obs)  # forward pass through actor critic networks
 
@@ -115,22 +116,22 @@ class Trainer():
                 for i, info in enumerate(infos):
                     if "final_observation" in info:
                         f_obs = torch.tensor(info["final_observation"], dtype=torch.float32, device=device)
-                        if f_obs.dim() == bootstrap_obs.ndim - 1:
-                            f_obs = f_obs.unsqueeze(0)
+                        # if f_obs.dim() == bootstrap_obs.ndim - 1:
+                        #     f_obs = f_obs.unsqueeze(0)
                         bootstrap_obs[i] = f_obs  # use final observation for GAE
 
                 # Tensorize next_obs
-                if true_next_obs.dim() == 2 or obs.dim() == 4:
-                    true_next_obs = true_next_obs.unsqueeze(0)
+                # if true_next_obs.dim() == 2 or obs.dim() == 4:
+                #     true_next_obs = true_next_obs.unsqueeze(0)
 
                 # done mask (total batch consists of multiple episodes, compute gae correctly without episodes bleeding into each other)
                 done_mask = torch.tensor(done_mask_np, dtype=torch.float32, device=device)
 
                 # prepare to add to buffer, remove batch_dim
-                if obs.dim() == 3 or obs.dim() == 5:
-                    obs = obs.squeeze(0)    
-                if values.dim() == 2 or values.dim() == 4:
-                    values = values.squeeze(0)
+                # if obs.dim() == 3 or obs.dim() == 5:
+                #     obs = obs.squeeze(0)    
+                # if values.dim() == 2 or values.dim() == 4:
+                #     values = values.squeeze(0)
 
                 # entry is added to buffer
                 trajectory.add_batch(
@@ -173,8 +174,8 @@ class Trainer():
             # Reset envs
             obs, infos = self.log_env.reset()                                   # [E, O]
             obs = torch.tensor(obs, dtype=torch.float32, device=device)     # to tensor
-            if obs.dim() == 2 or obs.dim() == 4:                            # O = [H, W, C] if CNN => 1 -> 3 => 2 -> 4
-                obs = obs.unsqueeze(0)                                      # [1, E, O] adding batch dim for forward pass through network
+            # if obs.dim() == 2 or obs.dim() == 4:                            # O = [H, W, C] if CNN => 1 -> 3 => 2 -> 4
+            #     obs = obs.unsqueeze(0)                                      # [1, E, O] adding batch dim for forward pass through network
 
 
             # Logging
@@ -192,8 +193,8 @@ class Trainer():
             # actual rollout here
             while not all(done_envs):
                 
-                if obs.dim() == 2 or obs.dim() == 4:                            # O = [H, W, C] if CNN => 1 -> 3 => 2 -> 4
-                    obs = obs.unsqueeze(0)                                      # [1, E, O] adding batch dim for forward pass through network
+                # if obs.dim() == 2 or obs.dim() == 4:                            # O = [H, W, C] if CNN => 1 -> 3 => 2 -> 4
+                #     obs = obs.unsqueeze(0)                                      # [1, E, O] adding batch dim for forward pass through network
 
                 actions, logps, values, entropies = self.agent.actBatched(obs)  # forward pass through actor critic networks
 
@@ -201,17 +202,17 @@ class Trainer():
                 next_obs, rewards, terminated, truncated, infos = self.log_env.step(actions.detach().cpu().numpy())
 
                 next_obs = torch.tensor(next_obs, dtype=torch.float32, device=device)
-                if next_obs.dim() == 2 or obs.dim() == 4:
-                    next_obs = next_obs.unsqueeze(0)    # adding batch dim
+                # if next_obs.dim() == 2 or obs.dim() == 4:
+                #     next_obs = next_obs.unsqueeze(0)    # adding batch dim
 
                 # done mask (total batch consists of multiple episodes, compute gae correctly without episodes bleeding into each other)
                 done_mask = torch.tensor([ter or tru for ter, tru in zip(terminated, truncated)],dtype=torch.float32, device=device)
 
-                if obs.dim() == 3 or obs.dim() == 5:
-                    obs = obs.squeeze(0)    # prepare to add to buffer, remove batch_dim
+                # if obs.dim() == 3 or obs.dim() == 5:
+                #     obs = obs.squeeze(0)    # prepare to add to buffer, remove batch_dim
 
-                if values.dim() == 2 or values.dim() == 4:
-                    values = values.squeeze(0)  # prepare to add to buffer, remove batch_dim
+                # if values.dim() == 2 or values.dim() == 4:
+                #     values = values.squeeze(0)  # prepare to add to buffer, remove batch_dim
 
                 # accumulation of logging stats per env
                 for i in range(self.num_envs):
@@ -245,8 +246,9 @@ class Trainer():
         # Reset envs (setup for initial rollout which expects initialized self.obs)
         obs, infos = self.env.reset()                                       # [E, O]
         self.obs = torch.tensor(obs, dtype=torch.float32, device=device)    # to tensor
-        if self.obs.dim() == 2 or self.obs.dim() == 4:                      # O = [H, W, C] if CNN => 1 -> 3 => 2 -> 4
-            self.obs = self.obs.unsqueeze(0)                                # [1, E, O] adding batch dim for forward pass through network
+
+        # if self.obs.dim() == 2 or self.obs.dim() == 4:                      # O = [H, W, C] if CNN => 1 -> 3 => 2 -> 4
+        #     self.obs = self.obs.unsqueeze(0)                                # [1, E, O] adding batch dim for forward pass through network
 
         for ep in range(self.num_episodes):
 
@@ -262,6 +264,7 @@ class Trainer():
                 trajectory.returns)
 
             if ep % 15 == 0:
+                # continue    # TEMPORARY
                 rewards, lengths, entropies = self.rollout_for_logging()
 
                 # aggregate reward stats
@@ -325,9 +328,9 @@ class Trainer():
 
             vis_env = gym.make(self.env_name, render_mode="human")   # separate environment for visualization (not vectorized)
 
-            # [O] -> [1, 1, O] simulating expected [B, E, O]
+            # [O] -> [1] simulating expected [B, O]
             observation, info = vis_env.reset()
-            observation = torch.tensor(observation, dtype=torch.float32, device=device).unsqueeze(0).unsqueeze(0)
+            observation = torch.tensor(observation, dtype=torch.float32, device=device).unsqueeze(0)
 
 
             running = True
@@ -342,11 +345,11 @@ class Trainer():
                 observation, _reward, terminated, truncated, _info = vis_env.step(action)
                 vis_env.render()
 
-                # [O] -> [1, 1, O] simulating expected [B, E, O]
-                observation = torch.tensor(observation, dtype=torch.float32, device=device).unsqueeze(0).unsqueeze(0)
+                # [O] -> [1, O] simulating expected [B, O]
+                observation = torch.tensor(observation, dtype=torch.float32, device=device).unsqueeze(0)
 
                 if terminated or truncated:
                     observation, _info = vis_env.reset()
-                    observation = torch.tensor(observation, dtype=torch.float32, device=device).unsqueeze(0).unsqueeze(0)
+                    observation = torch.tensor(observation, dtype=torch.float32, device=device).unsqueeze(0)
 
             pygame.quit()

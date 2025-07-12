@@ -26,8 +26,8 @@ class LogitsMLP(PolicyNetwork):
 
     def forward(self, observation: torch.Tensor)->torch.Tensor:
 
-        if observation.dim() == 1:
-            observation = observation.unsqueeze(0)
+        # if observation.dim() == 1:
+        #     observation = observation.unsqueeze(0)
 
         logits = self.network(observation)
         probs = Categorical(logits = logits)

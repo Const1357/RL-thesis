@@ -84,13 +84,21 @@ class Agent():
         """
       
         # observations [B, E, O]
+        # observations [B, O]   B is either batch dim or env dim
         
-        probs, raw = self.policy_net(observations)          # [B, E, N]
-        values = self.value_net(observations).squeeze(-1)   # [B, E, 1] -> [B, E]
+        # print('[OBS SHAPE]', observations.shape)
+        probs, raw = self.policy_net(observations)          # [B, O] -> [B, N]
+        # print('[PROBS SHAPE]', probs.probs.shape)
+        values = self.value_net(observations).squeeze(-1)   # [B, O] -> [B]
+        # print('[VALUES SHAPE]', values.shape)
 
-        actions   = probs.noisy_sample(self.policy_noise_scheduler()).squeeze(0)               # [1, E] -> [E]
-        log_probs = probs.log_prob(actions).squeeze(0)      # [1, E] -> [E]
-        entropies = probs.entropy().squeeze(0)              # [1, E] -> [E]
+        # actions   = probs.noisy_sample(self.policy_noise_scheduler()).squeeze(0)              # [1, E] -> [E]
+        actions   = probs.noisy_sample(self.policy_noise_scheduler())                           # [B]
+        # print('[ACTIONS SHAPE]', actions.shape)
+        # log_probs = probs.log_prob(actions).squeeze(0)      # [1, E] -> [E]
+        # entropies = probs.entropy().squeeze(0)              # [1, E] -> [E]
+        log_probs = probs.log_prob(actions)         # [B]
+        entropies = probs.entropy()                 # [B] - verified.
 
         # print("[Logits]:", raw[0, 0].detach().cpu().numpy())
 

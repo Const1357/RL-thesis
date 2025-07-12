@@ -22,8 +22,8 @@ class ValueMLP(ValueNetwork):
 
     def forward(self, observation: torch.Tensor):
 
-        if observation.dim() == 1:
-            observation = observation.unsqueeze(0)  # ensure batched shape [B, ...]
+        # if observation.dim() == 1:
+        #     observation = observation.unsqueeze(0)  # ensure batched shape [B, ...]
 
         return self.network(observation)
     
