@@ -240,7 +240,7 @@ class LogitsCNN(PolicyNetwork):
         _conv_layers = []
         for out_channels, kernel_size, stride, padding in conv_layers:
             _conv_layers.append(nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding))
-            _conv_layers.append(nn.ReLU())
+            _conv_layers.append(nn.LeakyReLU())
             in_channels=out_channels
         self.conv = nn.Sequential(*_conv_layers)
 
@@ -255,7 +255,7 @@ class LogitsCNN(PolicyNetwork):
         _fc_layers = []
         for out_features in fc_layers:
             _fc_layers.append(nn.Linear(in_features, out_features))
-            _fc_layers.append(nn.ReLU())
+            _fc_layers.append(nn.LeakyReLU())
             in_features = out_features
 
         self.fc = nn.Sequential(*_fc_layers)
@@ -263,8 +263,8 @@ class LogitsCNN(PolicyNetwork):
         self.head = nn.Linear(in_features, output_size)     # output_size = N (action space size)
 
         # Initialization
-        # nn.init.constant_(self.head.bias, 0.0)
-        # nn.init.orthogonal_(self.head.weight, gain=1.412)
+        nn.init.constant_(self.head.bias, 0.0)
+        nn.init.orthogonal_(self.head.weight, gain=1.412)
 
         # print("Trainable parameters:")
         # for name, param in self.named_parameters():
@@ -273,23 +273,11 @@ class LogitsCNN(PolicyNetwork):
 
     def forward(self, observation: torch.Tensor):
         
-        # print(observation.shape)
-        # B, C, H, W = observation.shape
-        # print('[SHAPE]',observation.shape)
-
-        # print('[OBS]', observation)
-
-        # obs0 = observation[0, 0]
-        # obs1 = observation[0, 1]
-        # print("Identical across envs?", torch.equal(obs0, obs1))
-
-        # x = observation.view(B*E, C, H, W)  # join batch and env dimensions, conv2d expects [B, C, H, W] input
-
         x = self.conv(observation)
         x = x.view(x.size(0), -1)   # flattening
         x = self.fc(x)
+
         logits = self.head(x)
-        # print('[LOGITS]', logits[0])
         probs = Categorical(logits=logits)
         return probs, logits
 
@@ -341,8 +329,8 @@ class GNN_N_CNN(PolicyNetwork):
         self.head = nn.Linear(in_features, 2*output_size)     # output_size = 2*N (action space size)
 
         # Initialization
-        # nn.init.constant_(self.head.bias, 0.0)
-        # nn.init.orthogonal_(self.head.weight, gain=1.0)
+        nn.init.constant_(self.head.bias, 0.0)
+        nn.init.orthogonal_(self.head.weight, gain=1.412)
 
     def forward(self, observation: torch.Tensor):
 

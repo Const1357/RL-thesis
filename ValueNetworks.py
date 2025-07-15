@@ -59,14 +59,11 @@ class ValueCNN(ValueNetwork):
 
         self.head = nn.Linear(in_features, 1)     # output_size = 1 (predicted value)
 
+        # Initialization
+        nn.init.constant_(self.head.bias, 0.0)
+        nn.init.orthogonal_(self.head.weight, gain=1.412)
+
     def forward(self, observation: torch.Tensor):
-
-        # if observation.dim() == 4:
-        #     observation = observation.unsqueeze(0)  # ensure batched shape [B, ...]
-        
-        # B, E, C, H, W = observation.shape
-
-        # x = observation.view(B*E, C, H, W)  # join batch and env dimensions, conv2d expects [B, C, H, W] input
 
         x = self.conv(observation)
         x = x.view(x.size(0), -1)   # flattening

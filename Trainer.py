@@ -105,6 +105,7 @@ class Trainer():
                 # Manual reset of individual environments that have terminated
                 done_mask_np = np.logical_or(terminated, truncated)
                 if np.any(done_mask_np):
+                    # print('DONE MASK', trajectory.ptr)
                     reset_obs, _ = self.env.reset(options={'reset_mask' : done_mask_np})
                     next_obs[done_mask_np] = reset_obs[done_mask_np]
 
@@ -208,12 +209,6 @@ class Trainer():
                 # done mask (total batch consists of multiple episodes, compute gae correctly without episodes bleeding into each other)
                 done_mask = torch.tensor([ter or tru for ter, tru in zip(terminated, truncated)],dtype=torch.float32, device=device)
 
-                # if obs.dim() == 3 or obs.dim() == 5:
-                #     obs = obs.squeeze(0)    # prepare to add to buffer, remove batch_dim
-
-                # if values.dim() == 2 or values.dim() == 4:
-                #     values = values.squeeze(0)  # prepare to add to buffer, remove batch_dim
-
                 # accumulation of logging stats per env
                 for i in range(self.num_envs):
                     if done_envs[i]:
@@ -264,7 +259,7 @@ class Trainer():
                 trajectory.returns)
 
             if ep % 15 == 0:
-                # continue    # TEMPORARY
+
                 rewards, lengths, entropies = self.rollout_for_logging()
 
                 # aggregate reward stats

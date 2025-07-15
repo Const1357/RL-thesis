@@ -330,3 +330,98 @@ class RewardClippingWrapper(gym.RewardWrapper):
     def reward(self, reward):
         return max(min(reward, self._max), self._min)
     
+
+class ClipRewardEnv(gym.RewardWrapper):
+    # Cleanrl implementation: https://github.com/vwxyzjn/cleanrl/blob/master/cleanrl_utils/atari_wrappers.py
+    """
+    Clip the reward to {+1, 0, -1} by its sign.
+
+    :param env: Environment to wrap
+    """
+
+    def __init__(self, env: gym.Env) -> None:
+        super().__init__(env)
+
+    def reward(self, reward) -> float:
+        """
+        Bin reward to {+1, 0, -1} by its sign.
+
+        :param reward:
+        :return:
+        """
+        return np.sign(float(reward))
+    
+
+
+def check_no_exploration(x: torch.Tensor) -> bool:
+    """
+    Checks whether, at any timestep `b`, all `E` environments received the same observation.
+    
+    Args:
+        x (torch.Tensor): shape [B, E, C, H, W]
+
+    Returns:
+        bool: True if any timestep has identical observations across all E.
+    """
+    if x.dim() == 3:
+        B,E,O = x.shape
+    else:
+        B,E,C,H,W = x.shape
+
+    x_flat = x.view(B, E, -1)  # Flatten each observation to [B, E, CHW]
+
+    for b in range(B):
+        env_obs = x_flat[b]  # [E, CHW]
+        if torch.unique(env_obs, dim=0).size(0) == 1:
+            print(f"[!] No exploration at step {b}: all environments identical.")
+            return True  # At least one step has no diversity
+        
+    print(f"[!] ALL ENVS ARE DIFFERENT")
+    return False  # All steps have diversity
+
+# Attempt: Atari environments always start from a fixed state. Diversity in initial state is given by performing X amount of no-op actions.
+class NoopResetEnv(gym.Wrapper):
+    def __init__(self, env, noop_max=30):
+        super().__init__(env)
+        self.noop_max = noop_max
+        self.noop_action = 0
+
+    def reset(self, **kwargs):
+        
+        obs, info = self.env.reset(**kwargs)
+        noops = self.env.np_random.integers(0, self.noop_max + 1)
+        for _ in range(noops):
+            obs, _, terminated, truncated, info = self.env.step(self.noop_action)
+            if terminated or truncated:
+                obs, info = self.env.reset(**kwargs)
+        return obs, info
+    
+
+
+class NoopFireResetEnv(gym.Wrapper):
+    def __init__(self, env, noop_max=30):
+        super().__init__(env)
+        self.noop_max = noop_max
+        self.noop_action = 0
+        self.needs_fire = "FIRE" in env.unwrapped.get_action_meanings()
+
+    def reset(self, **kwargs):
+        obs, info = self.env.reset(**kwargs)
+
+        # Perform random number of NOOPs first
+        noops = self.env.np_random.integers(0, self.noop_max + 1)
+        for _ in range(noops):
+            obs, _, terminated, truncated, info = self.env.step(self.noop_action)
+            if terminated or truncated:
+                obs, info = self.env.reset(**kwargs)
+
+        # Then FIRE if required
+        if self.needs_fire:
+            obs, _, terminated, truncated, _ = self.env.step(1)  # FIRE
+            if terminated or truncated:
+                obs, info = self.env.reset(**kwargs)
+            obs, _, terminated, truncated, _ = self.env.step(2)  # usually UP or second FIRE
+            if terminated or truncated:
+                obs, info = self.env.reset(**kwargs)
+
+        return obs, info

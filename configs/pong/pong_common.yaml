@@ -2,7 +2,7 @@
 
 env: ALE/Pong-v5
 render: False
-num_envs: 16
+num_envs: 8
 
 atari:
   stack_size: 4
@@ -38,10 +38,10 @@ noise_scheduler_kwargs:
   suppress_factor: 0.85
   frozen: true
 
-batch_size: 512           # 32 * num_envs
+batch_size: 256           # 32 * num_envs
 max_epochs: 3
-num_episodes: 12000
+num_episodes: 9765        # 9765*1025 = 9999360 = ~10M steps
 max_episode_length: 5000  # do not truncate
-rollout_length: 2048      # 16 * 128 (num_envs=16 * Horizon=128)
+rollout_length: 1024      # 16 * 128 (num_envs=16 * Horizon=128)
 
 # https://arxiv.org/pdf/1707.06347 Appendix A table 5

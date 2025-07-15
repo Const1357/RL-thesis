@@ -1,7 +1,7 @@
 from Utilities import *
 import gymnasium as gym
 from gymnasium.vector import SyncVectorEnv
-from gymnasium.wrappers import FrameStackObservation, TimeLimit, RescaleObservation, ResizeObservation
+from gymnasium.wrappers import FrameStackObservation, TimeLimit, ResizeObservation, NormalizeObservation
 
 from Agent import Agent
 from Trainer import Trainer
@@ -29,10 +29,10 @@ import random
 # I will add configuration files for other environments after completion of all methods. (GNN_N left + continuous)
 
     
-def make_env(name, config, seeds):
+def make_env(name, config):
     # used for multiple environments
     def _thunk():
-        print(name)
+        # print(name)
         
         if 'ALE' in name:
             env = gym.make(name, frameskip=4, obs_type='grayscale', full_action_space=False, repeat_action_probability=0.0)
@@ -45,11 +45,16 @@ def make_env(name, config, seeds):
         env = TimeLimit(env, max_episode_steps=config['max_episode_length'])
         if 'atari' in config:
 
-            env = ResizeObservation(env, shape=(84, 84))           # [84, 84]
-            env = RescaleObservation(env, min_obs=np.zeros((84, 84), dtype=np.float32), max_obs=np.ones((84, 84), dtype=np.float32))    # uint8: [0-255]-> float32: [0-1]
-
+            env = NoopFireResetEnv(env) # adds diversity in initial states (seeding produces same initial state, ATARI ROM loading problem, fixed by performing noops)
             # env = RewardClippingWrapper(env, min=-1, max=1)
-            env = FrameStackObservation(env, stack_size=config['atari']['stack_size'])
+            env = ClipRewardEnv(env)    # cleanrl implementation, clips by sign of reward
+            # env = RescaleObservation(env, min_obs=0.0, max_obs=1.0)    # uint8: [0-255]-> float32: [0-1]  # doesnt work: produces total black output.
+            # Solution: dividing the observation by 255.0 in the networks' forward. 
+            env = ResizeObservation(env, shape=(84, 84))           # [84, 84]
+            env = NormalizeObservation(env)
+            env = FrameStackObservation(env, stack_size=config['atari']['stack_size'], padding_type="zero")
+        else:
+            env = NormalizeObservation(env)
         
         return env
     return _thunk
@@ -68,25 +73,28 @@ def main():
 
     seed_offset = random.randint(0, 10000)  # ensure subsequent runs are different
     log_seed_offset = random.randint(10000, 20000)  # ensure subsequent runs are different
-
     
     seeds = [seed_offset + 127*i for i in range(config['num_envs'])]
     log_seeds = [log_seed_offset + 127*i for i in range(config['num_envs'])]
-    print(seeds)
-    print(log_seeds)
 
-    env_fns = [make_env(ENV_NAME, config, seeds) for _ in range(config['num_envs'])]   # num_envs:      E
+    env_fns = [make_env(ENV_NAME, config) for _ in range(config['num_envs'])]   # num_envs:      E
     env = SyncVectorEnv(env_fns)
 
-    log_env_fns = [make_env(ENV_NAME, config, log_seeds) for _ in range(config['num_envs'])]   # num_envs:      E
+    log_env_fns = [make_env(ENV_NAME, config) for _ in range(config['num_envs'])]   # num_envs:      E
     log_env = SyncVectorEnv(log_env_fns)
 
-    for i in range(config['num_envs']):
-        env.envs[i].reset(seed=seeds[i])
-        log_env.envs[i].reset(seed=log_seeds[i])
+    # for i in range(config['num_envs']):
+    #     env.envs[i].reset(seed=seeds[i])
+    #     log_env.envs[i].reset(seed=log_seeds[i])
 
-    print(env.np_random_seed)
-    
+    init_obs, _ = env.reset(seed=seeds)
+    # obs = torch.tensor(init_obs, dtype=torch.float32)
+    # print(obs.shape)
+    # check_no_exploration(obs.unsqueeze(0))
+    log_env.reset(seed=log_seeds)
+
+    # print(env.np_random_seed)
+
     observation_space_size = env.single_observation_space.shape[0]      # observation_space dim: O (ignored for ALE. hardcoded C x H x W = 4 x 84 x 84)
     action_space_size = env.single_action_space.n                       # action_space dim:      A
 
