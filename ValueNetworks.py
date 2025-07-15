@@ -22,9 +22,6 @@ class ValueMLP(ValueNetwork):
 
     def forward(self, observation: torch.Tensor):
 
-        # if observation.dim() == 1:
-        #     observation = observation.unsqueeze(0)  # ensure batched shape [B, ...]
-
         return self.network(observation)
     
 class ValueCNN(ValueNetwork):
@@ -61,7 +58,7 @@ class ValueCNN(ValueNetwork):
 
         # Initialization
         nn.init.constant_(self.head.bias, 0.0)
-        nn.init.orthogonal_(self.head.weight, gain=1.412)
+        nn.init.orthogonal_(self.head.weight, gain=1.412)   # gain = sqrt(2) used for ReLU activations
 
     def forward(self, observation: torch.Tensor):
 
@@ -69,5 +66,5 @@ class ValueCNN(ValueNetwork):
         x = x.view(x.size(0), -1)   # flattening
         x = self.fc(x)
         value = self.head(x)
-        # print(f"[Value]: {value[0,0].item()}")
+
         return value

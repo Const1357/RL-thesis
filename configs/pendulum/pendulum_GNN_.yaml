@@ -9,9 +9,9 @@ intervals:
   kwargs:
     xmin: -1
     xmax: 1
-    action_space_size: 3
+    action_space_size: 7
 
 mapping:
   fn_name: trivial
   kwargs:
-    action_space_size: 3
+    action_space_size: 7

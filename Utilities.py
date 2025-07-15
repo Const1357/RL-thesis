@@ -5,7 +5,7 @@ import re
 from numpy import mean, std
 from math import *
 import numpy as np
-import ale_py  # this registers ALE environments internally, DO NOT DELETE
+import ale_py  # this registers ALE environments internally, DO NOT DELETE.
 import gymnasium as gym
 
 from typing import Any, Tuple
@@ -129,10 +129,6 @@ def gaussian_mixture_integral(means: torch.Tensor, stds: torch.Tensor, weights: 
     """
 
     B, _, K = means.shape
-
-    # print(x_from.shape)
-    # print(means.shape)
-    # print(stds.shape)
 
     if x_from is None and x_to is None:
         return torch.ones((B,1,1), device=device)       # [B, 1, 1] is broadcastable to [B, N, 1]. N is unknown if x_from and x_to are None
@@ -276,6 +272,8 @@ resolve_mapping_fn = {
 }
 
 
+# -------------------- Wrappers -----------------------------
+
 class Categorical(torch.distributions.Categorical):
     """Subclass of torch.distributions.Categorical to support noisy sampling (assumming ordered actions)
     """
@@ -287,16 +285,16 @@ class Categorical(torch.distributions.Categorical):
         """
 
         batch_shape = self._batch_shape
-        device = self.probs.device                                      # ensure we sample on the same device
+        device = self.probs.device                          # ensure we sample on the same device
 
 
-        u = torch.rand(batch_shape, device=device)                      # draw sample u ~ Uniform(0,1)
+        u = torch.rand(batch_shape, device=device)          # draw sample u ~ Uniform(0,1)
 
-        noise = torch.randn_like(u) * noise_std                         # sample from gaussian with variance=std^2 (torch.normal_like(u, std=std) but it doesnt exist. Same effect)
+        noise = torch.randn_like(u) * noise_std             # sample from gaussian with variance=std^2 (torch.normal_like(u, std=std) but it doesnt exist. Same effect)
         
-        u_noisy = torch.clamp(u + noise, min=0.0, max=1.0)              # Add noise to the uniform draw and clamp to [0, 1]:
-        cdf = torch.cumsum(self.probs, dim=-1)                          # compute cdf for each action
-        u_noisy_expanded = u_noisy.unsqueeze(-1)                        # reshape for sampling
+        u_noisy = torch.clamp(u + noise, min=0.0, max=1.0)  # Add noise to the uniform draw and clamp to [0, 1]:
+        cdf = torch.cumsum(self.probs, dim=-1)              # compute cdf for each action
+        u_noisy_expanded = u_noisy.unsqueeze(-1)            # reshape for sampling
         sample = torch.searchsorted(cdf, u_noisy_expanded).squeeze(-1).clamp(max=self.probs.size(-1)-1)  # determine bin corresponding to action (= sample)
 
         return sample
@@ -319,16 +317,6 @@ class BoxToDiscreteWrapper(gym.ActionWrapper):
 
     def action(self, action_idx):
         return self.actions[action_idx]
-
-# Wrapper class to clip reward to [-1, 1] (used for ALE pong)
-class RewardClippingWrapper(gym.RewardWrapper):
-    def __init__(self, env, min=-1, max=1):
-        super().__init__(env)
-        self._min = -1
-        self._max = 1
-
-    def reward(self, reward):
-        return max(min(reward, self._max), self._min)
     
 
 class ClipRewardEnv(gym.RewardWrapper):
@@ -350,55 +338,15 @@ class ClipRewardEnv(gym.RewardWrapper):
         :return:
         """
         return np.sign(float(reward))
-    
 
 
-def check_no_exploration(x: torch.Tensor) -> bool:
-    """
-    Checks whether, at any timestep `b`, all `E` environments received the same observation.
-    
-    Args:
-        x (torch.Tensor): shape [B, E, C, H, W]
-
-    Returns:
-        bool: True if any timestep has identical observations across all E.
-    """
-    if x.dim() == 3:
-        B,E,O = x.shape
-    else:
-        B,E,C,H,W = x.shape
-
-    x_flat = x.view(B, E, -1)  # Flatten each observation to [B, E, CHW]
-
-    for b in range(B):
-        env_obs = x_flat[b]  # [E, CHW]
-        if torch.unique(env_obs, dim=0).size(0) == 1:
-            print(f"[!] No exploration at step {b}: all environments identical.")
-            return True  # At least one step has no diversity
-        
-    print(f"[!] ALL ENVS ARE DIFFERENT")
-    return False  # All steps have diversity
-
-# Attempt: Atari environments always start from a fixed state. Diversity in initial state is given by performing X amount of no-op actions.
-class NoopResetEnv(gym.Wrapper):
-    def __init__(self, env, noop_max=30):
-        super().__init__(env)
-        self.noop_max = noop_max
-        self.noop_action = 0
-
-    def reset(self, **kwargs):
-        
-        obs, info = self.env.reset(**kwargs)
-        noops = self.env.np_random.integers(0, self.noop_max + 1)
-        for _ in range(noops):
-            obs, _, terminated, truncated, info = self.env.step(self.noop_action)
-            if terminated or truncated:
-                obs, info = self.env.reset(**kwargs)
-        return obs, info
-    
-
+# Atari environments always start from a fixed loaded-from-ROM state. Diversity in initial state is given by performing an amount of no-op actions.
+# To begin the game, a 'FIRE' action must be performed. It is done so, after the noops.
 
 class NoopFireResetEnv(gym.Wrapper):
+
+    # Code inspiration: https://github.com/vwxyzjn/cleanrl/blob/master/cleanrl_utils/atari_wrappers.py
+
     def __init__(self, env, noop_max=30):
         super().__init__(env)
         self.noop_max = noop_max

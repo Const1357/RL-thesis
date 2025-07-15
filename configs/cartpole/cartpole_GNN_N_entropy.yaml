@@ -14,5 +14,3 @@ aux_loss_kwargs:
   M: 1
   aux_coeff: 0.02
   aux_mix: 0.5
-
-# clip_grad: 0.5

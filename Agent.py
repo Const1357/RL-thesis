@@ -19,10 +19,11 @@ class Agent():
             'gae_lambda' : config['gae_lambda'],
             'max_KL' : config['max_KL'],
             'entropy_coef' : config['entropy_coef'],
-            'noise_scheduler_kwargs' : config['noise_scheduler_kwargs'],
             'batch_size' : config['batch_size'],
             'max_epochs' : config['max_epochs'],
         }
+
+        self.config = config
 
         self.mode = 'train'
         
@@ -32,14 +33,21 @@ class Agent():
         self.value_optimizer = torch.optim.AdamW(self.value_net.parameters(), lr=config['value_lr'])
         self.policy_optimizer = torch.optim.AdamW(self.policy_net.parameters(), lr=config['policy_lr'])
 
-        self.policy_noise_scheduler = NoiseSTDScheduler(**config['noise_scheduler_kwargs'])
+        self.use_noise = 'noise_scheduler_kwargs' in self.config.keys()
+        if self.use_noise:
+            self.policy_noise_scheduler = NoiseSTDScheduler(**config['noise_scheduler_kwargs'])
+            self.hyperparameters['noise_scheduler_kwargs'] = config['noise_scheduler_kwargs']
+        else:
+            # HACK
+            # frozen with start, min, max std = 0.
+            self.policy_noise_scheduler = NoiseSTDScheduler(num_steps=1, start_std=0, min_std=0, max_std=0, frozen=True)
+            self.hyperparameters['noise_scheduler_kwargs'] = {'num_steps' : 1, 'start_std' : 0, 'min_std' : 0, 'max_std' : 0, 'frozen' : True}
 
         self.old_policy_net = copy.deepcopy(self.policy_net)
 
-        self.config = config
-
-        self.aux_loss_kwargs = self.config['aux_loss_kwargs'] if 'aux_loss_kwargs' in self.config.keys() else None
-        print(self.aux_loss_kwargs)
+        self.aux_loss = 'aux_loss_kwargs' in self.config.keys()
+        if self.aux_loss:
+            self.aux_loss_kwargs = self.config['aux_loss_kwargs']
 
         self.ALE = config['policy_net_size'] == 'ALE'
 
@@ -58,7 +66,7 @@ class Agent():
         """Sets the Agent on Eval Mode. Policy and Value networks are set to eval mode, and schedulers are frozen"""
         self.value_net.eval()
         self.policy_net.eval()
-        self.policy_temp_scheduler.freeze()
+        self.policy_noise_scheduler.freeze()
         self.mode = 'eval'
 
     def sync_policy_nets(self):
@@ -73,34 +81,24 @@ class Agent():
         """
         return self.hyperparameters
         
-    def actBatched(self, observations: torch.Tensor)->Tuple[torch.Tensor]:
-        """Performs an Actor Critic forward pass given an observation
+    def act_batched(self, observations: torch.Tensor)->Tuple[torch.Tensor]:
+        """Performs an Actor Critic forward pass given an observation.
 
         Args:
-            observations (torch.Tensor): Shape of [batch_dim, num_envs, observation_dim]
+            observations (torch.Tensor): Shape of [batch_dim, observation_dim]
 
         Returns:
-            Tuples of (action, log_prob, value, entropy), batched for num_envs environments (1D, shape [E])
+            Tuples of batched (action, log_prob, value, entropy), shape [B] each
         """
       
-        # observations [B, E, O]
         # observations [B, O]   B is either batch dim or env dim
         
-        # print('[OBS SHAPE]', observations.shape)
         probs, raw = self.policy_net(observations)          # [B, O] -> [B, N]
-        # print('[PROBS SHAPE]', probs.probs.shape)
         values = self.value_net(observations).squeeze(-1)   # [B, O] -> [B]
-        # print('[VALUES SHAPE]', values.shape)
 
-        # actions   = probs.noisy_sample(self.policy_noise_scheduler()).squeeze(0)              # [1, E] -> [E]
         actions   = probs.noisy_sample(self.policy_noise_scheduler())                           # [B]
-        # print('[ACTIONS SHAPE]', actions.shape)
-        # log_probs = probs.log_prob(actions).squeeze(0)      # [1, E] -> [E]
-        # entropies = probs.entropy().squeeze(0)              # [1, E] -> [E]
         log_probs = probs.log_prob(actions)         # [B]
         entropies = probs.entropy()                 # [B] - verified.
-
-        # print("[Logits]:", raw[0, 0].detach().cpu().numpy())
 
         return actions, log_probs, values, entropies
     
@@ -163,7 +161,7 @@ class Agent():
 
     # Policy with Flattened T,E = T*E
     @timeit
-    def update_policy(self, observations: torch.Tensor, actions: torch.Tensor, old_log_probs: torch.Tensor, advantages: torch.Tensor)->float:
+    def update_policy(self, observations: torch.Tensor, actions: torch.Tensor, old_log_probs: torch.Tensor, advantages: torch.Tensor)->Tuple[float, dict|None]:
         """Computes the PPOLoss and Performs backward pass through the Actor (Policy) Network.\\
         Repeats for max_epochs epochs, but terminates early if max_KL divergence is surpassed.
 
@@ -175,40 +173,36 @@ class Agent():
 
         Returns:
             float: average policy loss across all batches
+            dict: miscellaneous stats for auxiliary loss logging, or None if aux loss is not used
         """
         # torch.autograd.set_detect_anomaly(True)
 
-        # T = rollout_length // E(num_envs)
+        # B = T = rollout_length // E(num_envs)
 
         assert not old_log_probs.requires_grad
         
 
-        # observations  [B, O(obs_dim)]          O can also be C, H, W if image based.
-        # actions       [B]
-        # old_log_probs [B]
-        # advantages    [B]
+        # observations  [T, O(obs_dim)]          O can also be C, H, W if image based.
+        # actions       [T]
+        # old_log_probs [T]
+        # advantages    [T]
 
-        # Constructing a dataset of [B, T, E] is problematic. The point of running multiple environments is to 
-        # merge the results together, therefore we flatten the T,E dimensions to a single T*E dimension, but after GAE computation.
-
-
+        # Flattening Trajectory from shape [T, E, ...] to [TxE, ...]
         if self.ALE:
             T,E,C,H,W = observations.shape
-        else:
-            T,E,O = observations.shape
-        if self.ALE:
             observations_flat = observations.reshape(T*E, C,H,W)    # [T*E] = rollout_length
         else:
-            observations_flat = observations.reshape(T*E, O)        # [T*E] = rollout_length
+            T,E,O = observations.shape
+            observations_flat = observations.reshape(T*E, O)        # [T*E]
 
-        actions_flat = actions.reshape(T*E)                 # [T*E] = rollout_length
-        old_log_probs_flat = old_log_probs.reshape(T*E)     # [T*E] = rollout_length
-        advantages_flat = advantages.reshape(T*E)           # [T*E] = rollout_length
+        actions_flat = actions.reshape(T*E)                         # [T*E]
+        old_log_probs_flat = old_log_probs.reshape(T*E)             # [T*E]
+        advantages_flat = advantages.reshape(T*E)                   # [T*E]
 
-        print(f"[Advantage] mean: {advantages_flat.mean():.6f}, std: {advantages_flat.std():.6f}, min: {advantages_flat.min():.6f}, max: {advantages_flat.max():.6f}")
+        # print(f"[Advantage] mean: {advantages_flat.mean():.6f}, std: {advantages_flat.std():.6f}, min: {advantages_flat.min():.6f}, max: {advantages_flat.max():.6f}")
 
         # normalizing advantages after flattening (merging all environment transitions) => ensures global mean=0, std=1
-        advantages_flat_norm = (advantages_flat - advantages_flat.mean()) / (advantages_flat.std() + tol)    # [T*E] = rollout_length
+        advantages_flat_norm = (advantages_flat - advantages_flat.mean()) / (advantages_flat.std() + tol)    # [T*E]
 
         advantages_flat_norm = advantages_flat_norm.clamp(min=-10.0, max=10.0)
 
@@ -216,6 +210,12 @@ class Agent():
         loader = torch.utils.data.DataLoader(dataset, batch_size=self.hyperparameters['batch_size'], shuffle=True)
 
         total_policy_loss = 0
+        if self.aux_loss:
+            with torch.no_grad():       # simply for logging
+                total_ppo_loss = 0
+                total_penalty_loss = 0
+                total_margin_loss = 0
+
         total_steps = 0
 
         for n_epochs in range(self.hyperparameters['max_epochs']):
@@ -229,15 +229,11 @@ class Agent():
                 # batch_old_log_probs   [B]    
                 # batch_advantages      [B]
 
-                # print('[BATCH OBS SHAPE]', batch_observations.shape)
-
                 batch_old_log_probs = batch_old_log_probs.detach()      # ensuring no gradient flow from old predictions
 
                 # new forward pass for new log probs.
                 new_probs, raw = self.policy_net(batch_observations)                                        # [B, N] new FORWARD PASS
-                # should squeeze dim 1 of new_probs
                 new_probs = torch.distributions.categorical.Categorical(probs=new_probs.probs)              # [B, N]
-                # print(new_probs.probs.shape)
         
                 new_log_probs = new_probs.log_prob(batch_actions)       # new log probs                       [B]
                 entropy = new_probs.entropy()                           # entropy for regularization          [B]
@@ -248,10 +244,10 @@ class Agent():
                 ratio = torch.exp(new_log_probs - batch_old_log_probs)                                  # [B]
                 clipped_ratio = torch.clamp(ratio, 1-epsilon, 1+epsilon)                                # [B]
                 surrogate = torch.min(ratio*batch_advantages, clipped_ratio*batch_advantages)           # [B]
-                policy_loss = - surrogate - self.hyperparameters['entropy_coef']*entropy                # [B] reduction later
+                policy_loss = - surrogate - self.hyperparameters['entropy_coef']*entropy                # [B] mean reduction later
 
-                # aux loss here PER ACTION GAUSSIAN SCORES
-                if self.aux_loss_kwargs is not None:
+                # Auxiliarry Loss: (Only for GNN_N)
+                if self.aux_loss:
                     
                     # extract args
                     a = self.aux_loss_kwargs.get('a', 0.1)
@@ -261,11 +257,10 @@ class Agent():
                     aux_coeff = self.aux_loss_kwargs.get('aux_coeff', 0.02)
                     aux_mix = self.aux_loss_kwargs.get('aux_mix', 0.5)
 
-
+                    # raw contains the raw output of the network, shaped into mean and std tensors
                     means, stds = raw                                               # [B, E, N], squeeze E
                     means = means.squeeze(1)                                        # [B, N]
                     stds = stds.squeeze(1)                                          # [B, N]
-
 
                     I = intents(means)                                              # [B, N]
                     C = confidences(stds**2)                                        # [B, N]
@@ -273,17 +268,15 @@ class Agent():
                     L_penalty = loss_penalty(I, C, a, b, M).clamp(min=0.0, max=M)   # [B] in [0,1] (differentiable bounding transformation)
                     L_margin_spread = margin_loss(I).clamp(min=-1.0, max=1.0)       # [B] in [-1, 1] (margin in [-1, 0], spread in [0, 1])
 
-                    # print('\n----------------------------')
-                    # print("Penalty Loss = ", L_penalty.mean().item())
-                    # print("Margin-Spread Loss", L_margin_spread.mean().item())
-                    # print('----------------------------\n')
+                    with torch.no_grad():
+                        total_ppo_loss += policy_loss.mean().item()
+                        total_penalty_loss += L_penalty.mean().item()
+                        total_margin_loss += L_margin_spread.mean().item()
                     
                     # Mixing into Existing Loss
                     mixed_aux_loss = aux_mix*L_penalty + (1-aux_mix)*L_margin_spread
-                    # print("Policy loss before:", policy_loss.mean().item())
                     policy_loss = (1- aux_coeff * mixed_aux_loss)*policy_loss       # comment if additive aux loss
                     # policy_loss = policy_loss + aux_coeff*mixed_aux_loss          # uncomment if additive aux loss
-                    # print("Policy loss after:", policy_loss.mean().item())
 
                 policy_loss = policy_loss.mean()                                    # [] scalar, batch-wise averaging
                 total_policy_loss += policy_loss.item()
@@ -291,25 +284,23 @@ class Agent():
 
                 # optimizer step
                 self.policy_optimizer.zero_grad()
-                # with torch.autograd.set_detect_anomaly(True):
+
                 policy_loss = policy_loss.mean()
                 policy_loss = torch.nan_to_num(policy_loss, nan=0.0, posinf=10.0, neginf=-10.0)
 
                 policy_loss.backward()
 
-                # for name, param in self.policy_net.named_parameters():
-                #     if param.grad is not None:
-                #         print(f"{name}: grad norm = {param.grad.norm():.6f}")
-                #     else:
-                #         print(f"{name}: grad = None")
-
                 if self.config['clip_grad'] != 0:
                     torch.nn.utils.clip_grad_norm_(self.policy_net.parameters(), max_norm=self.config['clip_grad']) # Gradient Clipping (if specified in config)
                 self.policy_optimizer.step()
 
-                # if KL divergence exceeds a limit -> early stopping (TRPO-like)
+                # if KL divergence exceeds a limit -> early stopping (TRPO-like), not used in Atari environments (see configs)
+                
                 with torch.no_grad():
-                    kl_div = (batch_old_log_probs - new_log_probs).mean().item()   # Rough estimate of D_{KL}, [] = scalar
+                    if self.hyperparameters['max_KL'] <= 0:
+                        kl_div = -1 # illegal value so that the condition will never be met
+                    else:
+                        kl_div = (batch_old_log_probs - new_log_probs).mean().item()   # Rough estimate of D_{KL}, [] = scalar
 
                     if kl_div >= self.hyperparameters['max_KL']:
                         print(f"    - Early stopping at epoch {n_epochs+1}, batch {total_steps}, KL={kl_div:.4f}")
@@ -322,24 +313,22 @@ class Agent():
 
         # print(f"Policy optimized in {n_epochs+1} epochs in {total_steps} batch updates.")   # to see if KL condition was met
 
-        return total_policy_loss/total_steps
+        if self.aux_loss:
+            return total_policy_loss/total_steps, {
+                'ppo_loss': total_ppo_loss/total_steps,
+                'penalty_loss': total_penalty_loss/total_steps,
+                'margin_loss': total_margin_loss/total_steps,
+                }
+        else:
+            return total_policy_loss/total_steps, None
    
     
     def optimize(self, observations: torch.Tensor, actions: torch.Tensor, old_log_probs: torch.Tensor, advantages: torch.Tensor, returns: torch.Tensor)->Tuple[float, float]:
-        """Performs optimization routines for Actor (Policy) and Critic (Value) networks.
-
-        Args:
-            observations (torch.Tensor)
-            actions (torch.Tensor)
-            old_log_probs (torch.Tensor)
-            advantages (torch.Tensor)
-            returns (torch.Tensor)
-
-        Returns:
-            Tuple[float, float]: policy_loss, value_loss
+        """Performs optimization routines for Actor (Policy) and Critic (Value) networks. \\
+        For more details see Agent.update_policy and Agent.update_value.
         """
 
-        policy_loss = self.update_policy(observations, actions, old_log_probs, advantages)
+        policy_loss, policy_misc = self.update_policy(observations, actions, old_log_probs, advantages)
         value_loss = self.update_value(observations, returns)
 
-        return policy_loss, value_loss
+        return policy_loss, value_loss, policy_misc

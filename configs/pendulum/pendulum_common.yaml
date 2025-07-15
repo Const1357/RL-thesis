@@ -7,6 +7,8 @@ num_envs: 24
 quantize: True
 num_bins: 7
 
+log_frequency: 10
+
 # network_type: mlp
 # policy_type: logits
 value_net_size: small
@@ -21,20 +23,6 @@ gamma: 0.99
 gae_lambda: 0.97
 max_KL: 0.005
 entropy_coef: 0.0
-
-noise_scheduler_kwargs:
-  start_std: 0
-  min_std: 0
-  max_std: 0
-  decay_type: 'exponential'
-  l_num_steps: 150
-  e_decay_rate: 0.997
-  accept_threshold: -300
-  slope_threshold: 0.01
-  window_size: 20
-  plateau_boost: 1.5
-  suppress_factor: 0.85
-  frozen: true
 
 batch_size: 512
 max_epochs: 4

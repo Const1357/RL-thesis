@@ -9,6 +9,8 @@ atari:
 
 quantize: False
 
+log_frequency: 15
+
 # network_type: cnn
 # policy_type: logits
 value_net_size: ALE
@@ -21,22 +23,9 @@ value_lr: 0.00025
 policy_lr: 0.00025
 gamma: 0.99
 gae_lambda: 0.95
-max_KL: 1000000     # ignore KL divergence stopping condition
+max_KL: 0           # KL divergence stopping condition turned off
 entropy_coef: 0.00
 
-noise_scheduler_kwargs:
-  start_std: 0
-  min_std: 0
-  max_std: 0
-  decay_type: 'exponential'
-  l_num_steps: 150
-  e_decay_rate: 0.997
-  accept_threshold: -300
-  slope_threshold: 0.01
-  window_size: 20
-  plateau_boost: 1.5
-  suppress_factor: 0.85
-  frozen: true
 
 batch_size: 256
 max_epochs: 4

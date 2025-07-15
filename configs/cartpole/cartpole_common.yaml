@@ -2,9 +2,11 @@
 
 env: CartPole-v1
 render: False
-num_envs: 16
+num_envs: 8
 
 quantize: False
+
+log_frequency: 5
 
 # network_type: mlp
 # policy_type: logits
@@ -13,27 +15,13 @@ policy_net_size: small
 clip_grad: 0
 
 value_clip: 0.1
-policy_clip: 0.2
+policy_clip: 0.1
 value_lr: 0.001
 policy_lr: 0.0003
 gamma: 0.99
 gae_lambda: 0.97
 max_KL: 0.005
 entropy_coef: 0.0
-
-noise_scheduler_kwargs:
-  start_std: 0
-  min_std: 0
-  max_std: 0
-  decay_type: 'exponential'
-  l_num_steps: 150
-  e_decay_rate: 0.97
-  accept_threshold: 400
-  slope_threshold: 0.01
-  window_size: 20
-  plateau_boost: 1.5
-  suppress_factor: 0.85
-  frozen: true
 
 batch_size: 1024
 max_epochs: 4

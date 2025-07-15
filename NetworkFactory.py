@@ -46,7 +46,7 @@ def create_policy_network(input_size: int, output_size: int, config: dict[str, A
 
     Args:
         input_size (int): Observation dim
-        output_size (int): Action Space di
+        output_size (int): Action Space dim
         config (dict[str, Any]): Configuration dictionary, as loaded from the configuration file
 
     Returns:
@@ -67,7 +67,7 @@ def create_policy_network(input_size: int, output_size: int, config: dict[str, A
             #   do the intervals here
             #   do the mapping here
             # if in the future I decide to make intervals and mapping dynamic, the network will predict parameters that correspond to it
-            # and the mapping will be done in each forward call
+            # and the mapping will be done in each forward call. (NOTE: I will not, these methods do not work).
             
             interval_fn = resolve_interval_fn[config['intervals']['fn_name']]
             mapping_fn = resolve_mapping_fn[config['mapping']['fn_name']]
@@ -93,7 +93,7 @@ def create_policy_network(input_size: int, output_size: int, config: dict[str, A
             #   do the intervals here
             #   do the mapping here
             # if in the future I decide to make intervals and mapping dynamic, the network will predict parameters that correspond to it
-            # and the mapping will be done in each forward call
+            # and the mapping will be done in each forward call. (NOTE: I will not, these methods do not work).
             
             interval_fn = resolve_interval_fn[config['intervals']['fn_name']]
             mapping_fn = resolve_mapping_fn[config['mapping']['fn_name']]

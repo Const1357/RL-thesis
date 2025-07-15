@@ -26,9 +26,6 @@ class LogitsMLP(PolicyNetwork):
 
     def forward(self, observation: torch.Tensor)->torch.Tensor:
 
-        # if observation.dim() == 1:
-        #     observation = observation.unsqueeze(0)
-
         logits = self.network(observation)
         probs = Categorical(logits = logits)
 
@@ -66,33 +63,32 @@ class GNN_MLP(PolicyNetwork):
 
     def forward(self, observation: torch.Tensor):
         
-        # B, E, O = observation.shape                     # [B, E, O]
+        # B, E, O = observation.shape                   # [B, E, O]
         B, O = observation.shape                        # [B, O]
 
         out = self.network(observation)                 # [B, 2] -> 2= 0.μ, 1.σ
 
         # expanded to match [B, N, K]
-        mean = out[:, 0].unsqueeze(-1).unsqueeze(-1)     # [B, 1, 1]
-
-        std = out[:, 1].unsqueeze(-1).unsqueeze(-1)      # [B, 1, 1]
+        mean = out[:, 0].unsqueeze(-1).unsqueeze(-1)    # [B, 1, 1]
+        std = out[:, 1].unsqueeze(-1).unsqueeze(-1)     # [B, 1, 1]
         std = fn.softplus(std) + tol                    # [B, 1, 1] softplus for numerical stability
         std.clamp_min_(tol)
 
         intervals = self.intervals.expand(B, -1, -1)    # [B, N, 2] 
 
-        x_from = intervals[:, :,0].unsqueeze(-1)       # [B, N, 1]
-        x_to   = intervals[:, :,1].unsqueeze(-1)       # [B, N, 1]
+        x_from = intervals[:, :,0].unsqueeze(-1)        # [B, N, 1]
+        x_to   = intervals[:, :,1].unsqueeze(-1)        # [B, N, 1]
 
         # Integrating over intervals of interest
         probs = gaussian_integral(mean, std, x_from=x_from, x_to=x_to)  # [B, N, 1]
 
         # Normalizing to sum to 1. Z = probs.sum = 1 - rest.sum
-        Z = probs.sum(dim=2, keepdim=True)                  # [B, 1, 1] 
-        probs = probs / (Z + tol)                           # [B, N, 1]
-        probs = probs.squeeze(-1)                           # [B, N]
+        Z = probs.sum(dim=2, keepdim=True)              # [B, 1, 1] 
+        probs = probs / (Z + tol)                       # [B, N, 1]
+        probs = probs.squeeze(-1)                       # [B, N]
 
         # Mapping
-        probs = probs[:, self.mapping]                    # [B, N]
+        probs = probs[:, self.mapping]                  # [B, N]
         
         dist = Categorical(probs=probs)
 
@@ -133,38 +129,38 @@ class GNN_K_MLP(PolicyNetwork):
 
     def forward(self, observation: torch.Tensor):
         
-        B, O = observation.shape                                        # [B, O]
+        B, O = observation.shape                        # [B, O]
 
-        out = self.network(observation)                                 # [B, 3*K] -> 3*K= (0.μ, 1.σ, 2.w)*K
+        out = self.network(observation)                 # [B, 3*K] -> 3*K= (0.μ, 1.σ, 2.w)*K
 
-        means = out[:, :self.K].unsqueeze(1)                            # [B, 1, K]
+        means = out[:, :self.K].unsqueeze(1)            # [B, 1, K]
 
-        stds = out[:, self.K:2*self.K].unsqueeze(1)                     # [B, 1, K]
-        stds = fn.softplus(stds) + tol                                  # [B, 1, K]  softplus for numerical stability
+        stds = out[:, self.K:2*self.K].unsqueeze(1)     # [B, 1, K]
+        stds = fn.softplus(stds) + tol                  # [B, 1, K]  softplus for numerical stability
         stds.clamp_min_(tol)
-        ws = out[:, 2*self.K:3*self.K].unsqueeze(1)                     # [B, 1, K]
-        ws = fn.softmax(ws, dim=-1)                                     # softmax weights on K dim to ensure > 0 and sum to 1
-        # vars = stds**2                                                # [B, 1, K]
+        ws = out[:, 2*self.K:3*self.K].unsqueeze(1)     # [B, 1, K]
+        ws = fn.softmax(ws, dim=-1)                     # softmax weights on K dim to ensure > 0 and sum to 1
+        # vars = stds**2                                # [B, 1, K]
 
-        intervals = self.intervals.expand(B, -1, -1)                    # [B, N, 2] -> batch_dim, num_envs, act_dim, (x_from, x_to).shape=2
+        intervals = self.intervals.expand(B, -1, -1)    # [B, N, 2] -> batch_dim, num_envs, act_dim, (x_from, x_to).shape=2
 
-        x_from = intervals[:, :,0].unsqueeze(-1)                        # [B, N, 1]
-        x_to   = intervals[:, :,1].unsqueeze(-1)                        # [B, N, 1]
+        x_from = intervals[:, :,0].unsqueeze(-1)        # [B, N, 1]
+        x_to   = intervals[:, :,1].unsqueeze(-1)        # [B, N, 1]
 
         # Integrating over intervals of interest
         probs = gaussian_mixture_integral(means, stds, ws, x_from=x_from, x_to=x_to)  # [B, N, 1]
 
         # Normalizing to sum to 1. Z = probs.sum = 1 - rest.sum
-        Z = probs.sum(dim=2, keepdim=True)                                  # [B, 1, 1] 
-        probs = probs / (Z + tol)                                           # [B, N, 1]
-        probs = probs.squeeze(-1)                                           # [B, N]
+        Z = probs.sum(dim=2, keepdim=True)              # [B, 1, 1] 
+        probs = probs / (Z + tol)                       # [B, N, 1]
+        probs = probs.squeeze(-1)                       # [B, N]
 
         # Mapping
-        probs = probs[:, self.mapping]                                    # [B, N]
+        probs = probs[:, self.mapping]                  # [B, N]
 
         dist = Categorical(probs=probs)
 
-        return dist, (means.squeeze(1), stds.squeeze(1), ws.squeeze(1))     # means,stds,ws=[B, K] (squeeze N dim)
+        return dist, (means.squeeze(1), stds.squeeze(1), ws.squeeze(1)) # means,stds,ws=[B, K] (squeeze N dim)
 
 # GNN-N
 class GNN_N_MLP(PolicyNetwork):
@@ -194,40 +190,31 @@ class GNN_N_MLP(PolicyNetwork):
 
     def forward(self, observation: torch.Tensor):
         
-        B, O = observation.shape                                        # [B, O]
+        B, O = observation.shape            # [B, O]
 
-        # for name, p in self.named_parameters():
-        #     if torch.isnan(p).any() or torch.isinf(p).any():
-        #         print(f"PARAM NaN/Inf at {name}")
+        out = self.network(observation)     # [B, 2*N] -> 2*N= (0.μ, 1.σ)*N
 
-        out = self.network(observation)                                 # [B, 2*N] -> 2*N= (0.μ, 1.σ)*N
+        means = out[:,:self.N]              # [B, N]
+        stds = out[:,self.N:2*self.N]       # [B, N]
 
-        means = out[:,:self.N]                                          # [B, N]
-
-        stds = out[:,self.N:2*self.N]                                   # [B, N]
-
-        stds = fn.softplus(stds) + tol                                  # [B, N]  softplus for numerical stability
+        stds = fn.softplus(stds) + tol      # [B, N]  softplus for numerical stability
         stds = stds.clamp_min(tol)
 
         normal = torch.distributions.Normal(means, stds)
         # sample a z-score from each gaussian for each action (N) using the reparametrization trick
         samples = normal.rsample()
-        samples = means + self.noise_coeff*(samples-means)              # [B, N]    # samples stay close to the mean
+        samples = means + self.noise_coeff*(samples-means)  # [B, N]    # noise_coeff so that samples stay close to the mean
 
         logits = samples.clamp(-20.0, 20.0)
 
         dist = Categorical(logits=logits)
 
-        return dist, (means, stds)                                      # [B, N]
+        return dist, (means, stds)                          # [B, N]
 
 
-########### CNNs ############
-# when observation is an image (other envs) - implement later (maybe Atari if it's not too complex, it seems ideal for pseudo-ordered actions)
 
-# everything is the same as above except from O which will be H x W (or W x H). The appropriate Transformations should be applied
-# e.g. resizing, cropping, augmentations, and then passed through the cnn (self.network with different architecture)
+#---------------------------- CNNs ----------------------------
 
-# forward stays the same after passing the input (O = image) through the self.network, because it should predict the same values.
 
 # Logits CNN
 class LogitsCNN(PolicyNetwork):
@@ -264,12 +251,7 @@ class LogitsCNN(PolicyNetwork):
 
         # Initialization
         nn.init.constant_(self.head.bias, 0.0)
-        nn.init.orthogonal_(self.head.weight, gain=1.412)
-
-        # print("Trainable parameters:")
-        # for name, param in self.named_parameters():
-        #     if param.requires_grad:
-        #         print(f"{name:30} shape={tuple(param.shape)}   grad={param.grad}")
+        nn.init.orthogonal_(self.head.weight, gain=1.412)   # gain = sqrt(2) used for ReLU activations
 
     def forward(self, observation: torch.Tensor):
         
@@ -284,6 +266,7 @@ class LogitsCNN(PolicyNetwork):
 
 
 # Will not experiment with image-based environments for these methods as they have not performed well enough on simpler environments.
+
 # # GNN CNN
 # class GNN_CNN(PolicyNetwork):
 #     pass
@@ -298,7 +281,7 @@ class GNN_N_CNN(PolicyNetwork):
         super(GNN_N_CNN, self).__init__()
 
         self.N = output_size
-        self.noise_coeff = 0.05
+        self.noise_coeff = noise_coeff
 
         in_channels = input_channels
 
@@ -326,36 +309,35 @@ class GNN_N_CNN(PolicyNetwork):
 
         self.fc = nn.Sequential(*_fc_layers)
 
-        self.head = nn.Linear(in_features, 2*output_size)     # output_size = 2*N (action space size)
+        self.head = nn.Linear(in_features, 2*output_size)       # output_size = 2*N (action space size)
 
         # Initialization
         nn.init.constant_(self.head.bias, 0.0)
-        nn.init.orthogonal_(self.head.weight, gain=1.412)
+        nn.init.orthogonal_(self.head.weight, gain=1.412)       # gain = sqrt(2) used for ReLU activations
 
     def forward(self, observation: torch.Tensor):
 
 
-        # B, E, C, H, W = observation.shape                               # [B, C, H, W]
+        # [B, C, H, W] = observation.shape
         
         x = self.conv(observation)
         x = x.view(x.size(0), -1)   # flattening
         x = self.fc(x)                                                
-        out = self.head(x)                                              # [B, 2*N] -> 2*N= (0.μ, 1.σ)*N
+        out = self.head(x)                                      # [B, 2*N] -> 2*N= (0.μ, 1.σ)*N
 
-        means = out[:,:self.N]                                          # [B, N]
+        means = out[:,:self.N]                                  # [B, N]
+        stds = out[:,self.N:2*self.N]                           # [B, N]
 
-        stds = out[:,self.N:2*self.N]                                   # [B, N]
-
-        stds = fn.softplus(stds) + tol                                  # [B, N]  softplus for numerical stability
+        stds = fn.softplus(stds) + tol                          # [B, N]  softplus for numerical stability
         stds = stds.clamp_min(tol)
-        # vars = stds**2                                                # [B, N]
+
         normal = torch.distributions.Normal(means, stds)
         # sample a z-score from each gaussian for each action (N) using the reparametrization trick
         samples = normal.rsample()
-        samples = means + self.noise_coeff*(samples-means)              # [B, N]
+        samples = means + self.noise_coeff*(samples-means)      # [B, N]
 
         logits = samples.clamp(-20.0, 20.0)
 
         dist = Categorical(logits=logits)
 
-        return dist, (means, stds)                                      # [B, N]
+        return dist, (means, stds)                              # [B, N]

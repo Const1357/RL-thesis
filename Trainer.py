@@ -3,11 +3,8 @@ from Network import *
 import gymnasium as gym
 from Agent import Agent
 from TrajectoryBuffer import TrajectoryBuffer
-import copy
 
 import pygame
-
-from torch.utils.tensorboard import SummaryWriter
 
 class Trainer():
     def __init__(self,
@@ -21,8 +18,8 @@ class Trainer():
                  config: dict[str, Any],
                  ):
         
-        # self.writer = SummaryWriter(log_dir=f'runs/{env_name}/tensorboard/{experiment_name}/{experiment_name+experiment_tag}')  # tensorboard
-
+        self.config = config
+        
         self._render = config['render']
         
         self.env = env
@@ -43,61 +40,63 @@ class Trainer():
         value_size = count_parameters(self.agent.value_net)
         policy_size = count_parameters(self.agent.policy_net)
 
+        self.aux_loss = 'aux_loss_kwargs' in self.config.keys()
+
         # Logging: Graphs = f(episode) NOTE: logging happens only for completed episodes
         self.data = {
             'env_name' : env_name,
             'experiment_name' : experiment_name,
+            'update_steps' : config['rollout_length'],
+            'log_steps' : config['rollout_length'] * config['log_frequency'],
+            'total_steps' : config['rollout_length'] * config['num_episodes'],
+            'use_aux_loss' : self.aux_loss,
+
             'reward_curve' : [],        # stores tuples of (min, avg, max, std) -> main focus is avg
             'entropy_curve' : [],       # stores tuples of (min, avg, max, std) -> main focus is avg
+
             'policy_loss_curve' : [],   
-            'value_loss_curve' : [],    
+            'value_loss_curve' : [],
             'noise_stds_curve' : [],
+
             'value_size' : value_size,
             'policy_size' : policy_size,
             'total_size' : (value_size + policy_size)
         }
 
-        self.config = config
+        if self.aux_loss:
+            self.data['ppo_loss_curve'] = []
+            self.data['margin_loss_curve'] = []
+            self.data['penalty_loss_curve'] = []
 
     @timeit
     def rollout(self, num_steps: int)->TrajectoryBuffer:
         """
-        THE DOCSTRING IS OUTDATED. TODO: UPDATE IT.
+        Collects a rollout of experience from vectorized environments using the current policy.\\
+        Terminated environments are reset, with the appropriate values added in the trajectory for correct GAE computation.\\
+        Environments are not being reset at the end of the rollout. A trajectory obtained from a rollout can contain partial episodes.\\
+        On subsequent calls of rollout, the environments continue exactly where they left off.
 
-        Vectorized rollout using the preallocated TrajectoryBuffer.\\
-        Collects exactly num_steps total env steps across self.num_envs envs.
-        
+        Args:
+            num_steps (int): Total number of environment steps to collect across all environments.
+                            The number of steps per environment (horizon) is calculated as num_steps // num_envs.
+
         Returns:
-        - TrajectoryBuffer: contains observations, actions, log_probs, values, rewwards, dones, advantages, returns
-        - Lists of aggregated (completed) episode stats: episode_rewards, episode_lengths, episode_entropies: 
-
-        Workload is evenly split among all environments so each environment performs exactly\\
-        num_steps // num_envs steps. It is critical that num_steps // num_envs > max_reward\\
-        to ensure that at least one episode has been completed per rollout. Only complete episodes\\
-        per rollout and logged. At least one episode must be logged per rollout. 
+            TrajectoryBuffer: A buffer containing observations, actions, log probabilities, values,
+                            rewards, and masks for the collected rollout. The buffer also computes
+                            advantages and returns using Generalized Advantage Estimation (GAE).
         """
         
         with torch.no_grad():
 
-
             rollout_steps = num_steps // self.num_envs
             trajectory = TrajectoryBuffer(rollout_steps, self.num_envs, self.obs_dim)
-
-            # obs, infos = self.env.reset()                                       # [E, O]
-            # obs = torch.tensor(obs, dtype=torch.float32, device=device)    # to tensor
-            # if obs.dim() == 2 or obs.dim() == 4:                      # O = [H, W, C] if CNN => 1 -> 3 => 2 -> 4
-            #     obs = obs.unsqueeze(0)                                # [1, E, O] adding batch dim for forward pass through network
 
             # Rollout loop
             while trajectory.ptr < rollout_steps:
 
-                obs = self.obs
-                
-                # if obs.dim() == 2 or obs.dim() == 4:                            # O = [H, W, C] if CNN => 1 -> 3 => 2 -> 4
-                #     obs = obs.unsqueeze(0)                                      # [1, E, O] adding batch dim for forward pass through network
-                # env dim E will act as batch dim B.
+                obs = self.obs  # [E, O]
 
-                actions, logps, values, entropies = self.agent.actBatched(obs)  # forward pass through actor critic networks
+                actions, logps, values, entropies = self.agent.act_batched(obs)  # forward pass through actor critic networks
 
                 # env step
                 next_obs, rewards, terminated, truncated, infos = self.env.step(actions.detach().cpu().numpy())
@@ -105,7 +104,6 @@ class Trainer():
                 # Manual reset of individual environments that have terminated
                 done_mask_np = np.logical_or(terminated, truncated)
                 if np.any(done_mask_np):
-                    # print('DONE MASK', trajectory.ptr)
                     reset_obs, _ = self.env.reset(options={'reset_mask' : done_mask_np})
                     next_obs[done_mask_np] = reset_obs[done_mask_np]
 
@@ -117,22 +115,10 @@ class Trainer():
                 for i, info in enumerate(infos):
                     if "final_observation" in info:
                         f_obs = torch.tensor(info["final_observation"], dtype=torch.float32, device=device)
-                        # if f_obs.dim() == bootstrap_obs.ndim - 1:
-                        #     f_obs = f_obs.unsqueeze(0)
                         bootstrap_obs[i] = f_obs  # use final observation for GAE
-
-                # Tensorize next_obs
-                # if true_next_obs.dim() == 2 or obs.dim() == 4:
-                #     true_next_obs = true_next_obs.unsqueeze(0)
 
                 # done mask (total batch consists of multiple episodes, compute gae correctly without episodes bleeding into each other)
                 done_mask = torch.tensor(done_mask_np, dtype=torch.float32, device=device)
-
-                # prepare to add to buffer, remove batch_dim
-                # if obs.dim() == 3 or obs.dim() == 5:
-                #     obs = obs.squeeze(0)    
-                # if values.dim() == 2 or values.dim() == 4:
-                #     values = values.squeeze(0)
 
                 # entry is added to buffer
                 trajectory.add_batch(
@@ -157,27 +143,15 @@ class Trainer():
 
     @timeit
     def rollout_for_logging(self)->Tuple[list, list, list]:
+        """Similar to Trainer.rollout.\\
+        Collects evaluation stats: reward, episode_length, entropy per actor/sub-environment.\\
+        Performs one complete episode froms start to finish for each sub-environment.
         """
-        Vectorized rollout using the preallocated TrajectoryBuffer.\\
-        Collects exactly num_steps total env steps across self.num_envs envs.
-        
-        Returns:
-        - TrajectoryBuffer: contains observations, actions, log_probs, values, rewwards, dones, advantages, returns
-        - Lists of aggregated (completed) episode stats: episode_rewards, episode_lengths, episode_entropies: 
 
-        Workload is evenly split among all environments so each environment performs exactly\\
-        num_steps // num_envs steps. It is critical that num_steps // num_envs > max_reward\\
-        to ensure that at least one episode has been completed per rollout. Only complete episodes\\
-        per rollout and logged. At least one episode must be logged per rollout. 
-        """
-        
         with torch.no_grad():
             # Reset envs
             obs, infos = self.log_env.reset()                                   # [E, O]
             obs = torch.tensor(obs, dtype=torch.float32, device=device)     # to tensor
-            # if obs.dim() == 2 or obs.dim() == 4:                            # O = [H, W, C] if CNN => 1 -> 3 => 2 -> 4
-            #     obs = obs.unsqueeze(0)                                      # [1, E, O] adding batch dim for forward pass through network
-
 
             # Logging
             ep_rewards   = [0.0] * self.num_envs
@@ -193,18 +167,13 @@ class Trainer():
 
             # actual rollout here
             while not all(done_envs):
-                
-                # if obs.dim() == 2 or obs.dim() == 4:                            # O = [H, W, C] if CNN => 1 -> 3 => 2 -> 4
-                #     obs = obs.unsqueeze(0)                                      # [1, E, O] adding batch dim for forward pass through network
 
-                actions, logps, values, entropies = self.agent.actBatched(obs)  # forward pass through actor critic networks
+                actions, logps, values, entropies = self.agent.act_batched(obs)  # forward pass through actor critic networks
 
                 # env step
                 next_obs, rewards, terminated, truncated, infos = self.log_env.step(actions.detach().cpu().numpy())
 
                 next_obs = torch.tensor(next_obs, dtype=torch.float32, device=device)
-                # if next_obs.dim() == 2 or obs.dim() == 4:
-                #     next_obs = next_obs.unsqueeze(0)    # adding batch dim
 
                 # done mask (total batch consists of multiple episodes, compute gae correctly without episodes bleeding into each other)
                 done_mask = torch.tensor([ter or tru for ter, tru in zip(terminated, truncated)],dtype=torch.float32, device=device)
@@ -214,8 +183,8 @@ class Trainer():
                     if done_envs[i]:
                         continue
 
-                    ep_rewards[i]   += rewards[i]
-                    ep_lengths[i]   += 1
+                    ep_rewards[i] += rewards[i]
+                    ep_lengths[i] += 1
                     ep_entropies[i].append(entropies[i].cpu().item())
                     if done_mask[i].item() == 1.0:
 
@@ -236,14 +205,10 @@ class Trainer():
         Returns:
             dict[str, Any]: Dictionary of Training Stats
         """
-        self.agent.train_mode()
 
         # Reset envs (setup for initial rollout which expects initialized self.obs)
         obs, infos = self.env.reset()                                       # [E, O]
         self.obs = torch.tensor(obs, dtype=torch.float32, device=device)    # to tensor
-
-        # if self.obs.dim() == 2 or self.obs.dim() == 4:                      # O = [H, W, C] if CNN => 1 -> 3 => 2 -> 4
-        #     self.obs = self.obs.unsqueeze(0)                                # [1, E, O] adding batch dim for forward pass through network
 
         for ep in range(self.num_episodes):
 
@@ -251,14 +216,21 @@ class Trainer():
             trajectory = self.rollout(self.rollout_length)
 
             # Actor Critic Optimization
-            policy_loss, value_loss = self.agent.optimize(
+            policy_loss, value_loss, policy_misc = self.agent.optimize(
                 trajectory.observations, 
                 trajectory.actions, 
                 trajectory.log_probs, 
                 trajectory.advantages, 
                 trajectory.returns)
+            
+            self.data['policy_loss_curve'].append(policy_loss)
+            self.data['value_loss_curve'].append(value_loss)
+            if self.aux_loss:
+                self.data['ppo_loss_curve'].append(policy_misc['ppo_loss'])
+                self.data['penalty_loss_curve'].append(policy_misc['penalty_loss'])
+                self.data['margin_loss_curve'].append(policy_misc['margin_loss'])
 
-            if ep % 15 == 0:
+            if ep % self.config['log_frequency'] == 0:
 
                 rewards, lengths, entropies = self.rollout_for_logging()
 
@@ -285,9 +257,6 @@ class Trainer():
                 # store for plotting later
                 self.data['reward_curve'].append((min_r, avg_r, max_r, std_r))
                 self.data['entropy_curve'].append((min_e, avg_e, max_e, std_e))
-                self.data['policy_loss_curve'].append(policy_loss)
-                self.data['value_loss_curve'].append(value_loss)
-                self.data['noise_stds_curve'].append(noise_std)
 
                 # console logging
                 print(f"Episode {ep+1:0{len(str(self.num_episodes))}d}/{self.num_episodes}: ---------------------------------------------------------------- LOGGING")
@@ -298,11 +267,12 @@ class Trainer():
                 print(f" - Noise std: {noise_std:.4f}")
                 print(f"----------------------------------------------------------------------------------------")
 
-                # step noise scheduler
-                self.agent.policy_noise_scheduler.step(avg_r)
             else:
                 print(f"Episode {ep+1:0{len(str(self.num_episodes))}d}/{self.num_episodes}:")
                 print(f" - PolicyLoss: {policy_loss:.6f}  ValueLoss: {value_loss:.6f}")
+
+            # step noise scheduler
+            self.agent.policy_noise_scheduler.step()
 
         return self.data    # dictionary of collected data
         
@@ -319,8 +289,6 @@ class Trainer():
             pygame.init()
             screen = pygame.display.set_mode((800, 600))
 
-            self.agent.eval_mode()
-
             vis_env = gym.make(self.env_name, render_mode="human")   # separate environment for visualization (not vectorized)
 
             # [O] -> [1] simulating expected [B, O]
@@ -334,7 +302,7 @@ class Trainer():
                     if event.type == pygame.QUIT:   # detect window close button
                         running = False
 
-                action, *_ = self.agent.actBatched(observation)
+                action, *_ = self.agent.act_batched(observation)
                 action = int(action.item())
 
                 observation, _reward, terminated, truncated, _info = vis_env.step(action)

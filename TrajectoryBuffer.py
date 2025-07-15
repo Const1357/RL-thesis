@@ -48,27 +48,6 @@ class TrajectoryBuffer:
         The shape is important so as to keep the temporal relationships independent per-env (for correct GAE computation)
         """
 
-        # print(observations.shape)
-
-        # print('[ADD BATCH]')
-        # check_no_exploration(observations.unsqueeze(0))
-
-        # for e in range(1, self.num_envs):
-        #     diff = (observations[0] - observations[e]).abs().mean().item()
-        #     print(f"[{self.ptr}] Env 0 vs {e} diff:", diff)
-
-        # import matplotlib.pyplot as plt
-        # print(observations[0, 0])
-        # isnull = torch.any(observations[0, 0] != 0)
-        # print('[ISNULL]', isnull)
-
-        # plt.imshow(observations[0,0].detach().cpu().numpy()*255.0, cmap='gray')
-        # plt.axis('off')
-        # plt.tight_layout()
-        # plt.savefig("obs_t0_e0_c0.png", bbox_inches='tight', pad_inches=0)
-        # plt.close()
-        # print('IMAGE DONE')
-
         t = self.ptr
         self.observations[t].copy_(observations)
         self.actions[t].copy_(actions)
