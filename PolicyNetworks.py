@@ -63,7 +63,6 @@ class GNN_MLP(PolicyNetwork):
 
     def forward(self, observation: torch.Tensor):
         
-        # B, E, O = observation.shape                   # [B, E, O]
         B, O = observation.shape                        # [B, O]
 
         out = self.network(observation)                 # [B, 2] -> 2= 0.μ, 1.σ

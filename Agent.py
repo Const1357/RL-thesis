@@ -237,6 +237,7 @@ class Agent():
                 batch_old_log_probs = batch_old_log_probs.detach()      # ensuring no gradient flow from old predictions
 
                 # new forward pass for new log probs.
+
                 new_probs, raw = self.policy_net(batch_observations)                                        # [B, N] new FORWARD PASS
                 new_probs = torch.distributions.categorical.Categorical(probs=new_probs.probs)              # [B, N]
         
