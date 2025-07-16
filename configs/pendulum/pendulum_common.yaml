@@ -7,7 +7,7 @@ num_envs: 24
 quantize: True
 num_bins: 7
 
-log_frequency: 10
+log_frequency: 5
 
 # network_type: mlp
 # policy_type: logits

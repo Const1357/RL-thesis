@@ -29,7 +29,7 @@ entropy_coef: 0.00
 batch_size: 256           # 32 * num_envs
 max_epochs: 3
 num_episodes: 9765        # 9765*1025 = 9999360 = ~10M steps
-max_episode_length: 5000  # do not truncate
+max_episode_length: 10000 # = do not truncate (episode usually finishes in under 10k steps)
 rollout_length: 1024      # 16 * 128 (num_envs=16 * Horizon=128)
 
 # https://arxiv.org/pdf/1707.06347 Appendix A table 5
