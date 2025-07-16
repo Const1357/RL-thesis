@@ -115,18 +115,23 @@ class Agent():
         """
         # returns = (returns - returns.mean()) / (returns.std() + tol)    # normalizing returns
 
-        if (observations.dim() == 5):           # flatten for batch processing with single batch dim
-            B, E, C, H, W = observations.shape
-            observations = observations.view(B*E, C, H, W)      # [B, E, C, H, W] -> [B*E, C, H, W]
-            returns = returns.view(B*E)                         # [B, E] -> [B*E]
+
+        if self.ALE:
+            T,E,C,H,W = observations.shape
+            observations_flat = observations.reshape(T*E, C,H,W)    # [T*E] = rollout_length
+        else:
+            T,E,O = observations.shape
+            observations_flat = observations.reshape(T*E, O)        # [T*E]
+        returns_flat = returns.view(T*E)
+
 
         eps = self.hyperparameters['value_clip']
 
         # frozen snapshot of values before optimizing, for clipping (detched)
         with torch.no_grad():
-            old_values = self.value_net(observations).squeeze(-1).detach()   # [B, 1] -> [B]
-
-        dataset = torch.utils.data.TensorDataset(observations, returns, old_values)
+            old_values_flat = self.value_net(observations_flat).squeeze(-1).detach()   # [T*E, 1] -> [T*E]
+            
+        dataset = torch.utils.data.TensorDataset(observations_flat, returns_flat, old_values_flat)
         loader = torch.utils.data.DataLoader(dataset, batch_size=self.hyperparameters['batch_size'], shuffle=True)
 
         total_loss = 0.0
