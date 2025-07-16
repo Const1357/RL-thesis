@@ -63,7 +63,6 @@ class GNN_MLP(PolicyNetwork):
 
     def forward(self, observation: torch.Tensor):
         
-        # B, E, O = observation.shape                   # [B, E, O]
         B, O = observation.shape                        # [B, O]
 
         out = self.network(observation)                 # [B, 2] -> 2= 0.μ, 1.σ
@@ -83,7 +82,7 @@ class GNN_MLP(PolicyNetwork):
         probs = gaussian_integral(mean, std, x_from=x_from, x_to=x_to)  # [B, N, 1]
 
         # Normalizing to sum to 1. Z = probs.sum = 1 - rest.sum
-        Z = probs.sum(dim=2, keepdim=True)              # [B, 1, 1] 
+        Z = probs.sum(dim=1, keepdim=True)              # [B, 1, 1] 
         probs = probs / (Z + tol)                       # [B, N, 1]
         probs = probs.squeeze(-1)                       # [B, N]
 
@@ -151,7 +150,7 @@ class GNN_K_MLP(PolicyNetwork):
         probs = gaussian_mixture_integral(means, stds, ws, x_from=x_from, x_to=x_to)  # [B, N, 1]
 
         # Normalizing to sum to 1. Z = probs.sum = 1 - rest.sum
-        Z = probs.sum(dim=2, keepdim=True)              # [B, 1, 1] 
+        Z = probs.sum(dim=1, keepdim=True)              # [B, 1, 1] 
         probs = probs / (Z + tol)                       # [B, N, 1]
         probs = probs.squeeze(-1)                       # [B, N]
 
