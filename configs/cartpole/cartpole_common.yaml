@@ -2,11 +2,11 @@
 
 env: CartPole-v1
 render: False
-num_envs: 8
+num_envs: 16
 
 quantize: False
 
-log_frequency: 5
+log_frequency: 3
 
 # network_type: mlp
 # policy_type: logits
