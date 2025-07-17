@@ -9,7 +9,7 @@ import re
 
 sns.set_style('darkgrid')
 
-environments = ['CartPole-v1', 'Pendulum-v1']#, 'ALE/Pong-v5']
+environments = ['CartPole-v1', 'Pendulum-v1', 'ALE/Pong-v5']
 # environments = ['CartPole-v1']
 # environments = ['Pendulum-v1']
 
