@@ -68,6 +68,13 @@ class Trainer():
             self.data['margin_loss_curve'] = []
             self.data['penalty_loss_curve'] = []
 
+            self.data['intent_evolution'] = []
+            self.data['confidence_evolution'] = []
+            self.data['selected_actions'] = []
+
+            if self.config['save_frames']:
+                self.data['completed_episode_frames'] = []
+
     @timeit
     def rollout(self, num_steps: int)->TrajectoryBuffer:
         """
@@ -96,7 +103,7 @@ class Trainer():
 
                 obs = self.obs  # [E, O]
 
-                actions, logps, values, entropies = self.agent.act_batched(obs)  # forward pass through actor critic networks
+                actions, logps, values, entropies, raw = self.agent.act_batched(obs)  # forward pass through actor critic networks
 
                 # env step
                 next_obs, rewards, terminated, truncated, infos = self.env.step(actions.detach().cpu().numpy())
@@ -159,23 +166,36 @@ class Trainer():
             ep_entropies = [[]  for _ in range(self.num_envs)]
 
             # holds stats for completed episodes (1 per env)
-            all_rewards   = []      # completed-episode rewards
-            all_lengths   = []      # completed-episode lengths    
-            all_entropies = []      # completed-episode entropies
+            all_rewards   = []              # completed-episode rewards
+            all_lengths   = []              # completed-episode lengths    
+            all_entropies = []              # completed-episode entropies
+
+            if self.aux_loss:               # for GNN_N: Logging only for a specific environment
+                env0_intents = []           # completed-episode intents per step ( 
+                env0_confidences = []       # completed-episode confidences per step (for a specific environment, not for all environments)
+                env0_selected_action = []   # completed-episode selected actions per step
+                if self.config['save_frames']:
+                    env0_frames = []
 
             done_envs = [False] * self.num_envs
 
             # actual rollout here
             while not all(done_envs):
 
-                actions, logps, values, entropies = self.agent.act_batched(obs)  # forward pass through actor critic networks
+                actions, logps, values, entropies, raw = self.agent.act_batched(obs)  # forward pass through actor critic networks
+
+                if self.aux_loss and self.config['save_frames']:
+                    frame = self.log_env.envs[0].render()   # HACK .envs is not exposed in gymnasium API, see SyncVectorEnv implementation in sync_vector_env.py
+                    # if this does not work, I should try to set different render modes for each environment in make_env.
+                    # SyncVectorEnv.render is implemented as list comprehension that returns tuple(env.render() for env in self.envs)
+                    env0_frames.append(frame)
 
                 # env step
                 next_obs, rewards, terminated, truncated, infos = self.log_env.step(actions.detach().cpu().numpy())
 
                 next_obs = torch.tensor(next_obs, dtype=torch.float32, device=device)
 
-                # done mask (total batch consists of multiple episodes, compute gae correctly without episodes bleeding into each other)
+                # done mask
                 done_mask = torch.tensor([ter or tru for ter, tru in zip(terminated, truncated)],dtype=torch.float32, device=device)
 
                 # accumulation of logging stats per env
@@ -183,19 +203,36 @@ class Trainer():
                     if done_envs[i]:
                         continue
 
+                    if self.aux_loss and i == 0:
+                        with torch.no_grad():
+                            means = raw[0][i]
+                            stds = raw[1][i]
+                            I = intents(means)
+                            C = confidences(stds.pow(2))
+                            env0_intents.append(I.detach().cpu().numpy())
+                            env0_confidences.append(C.detach().cpu().numpy())
+                            env0_selected_action.append(actions[i].item())
+
                     ep_rewards[i] += rewards[i]
                     ep_lengths[i] += 1
                     ep_entropies[i].append(entropies[i].cpu().item())
+
                     if done_mask[i].item() == 1.0:
 
                         done_envs[i] = True
-
                         # record completed episode i
                         all_rewards.append(ep_rewards[i])
                         all_lengths.append(ep_lengths[i])
                         all_entropies.append(float(mean(ep_entropies[i])))
 
                 obs = next_obs
+            
+            if self.aux_loss:
+                self.data['intent_evolution'].append(env0_intents)
+                self.data['confidence_evolution'].append(env0_confidences)
+                self.data['selected_actions'].append(env0_selected_action)
+                if self.config['save_frames']:
+                    self.data['completed_episode_frames'].append(env0_frames)
 
             return all_rewards, all_lengths, all_entropies
 

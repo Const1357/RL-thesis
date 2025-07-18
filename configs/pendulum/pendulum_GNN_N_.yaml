@@ -4,11 +4,13 @@ experiment_name: pendulum_GNN_N_mlp
 network_type: mlp
 policy_type: GNN_N
 
-noise_coeff: 0.05
+noise_coeff: 1
 
 aux_loss_kwargs:
-  a: 0.1
-  b: 0.1
+  a: 1
+  b: 1
   M: 1
-  aux_coeff: 0.02
+  aux_coeff: 0.01
   aux_mix: 0.5
+
+save_frames: True

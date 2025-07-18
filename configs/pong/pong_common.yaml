@@ -9,7 +9,7 @@ atari:
 
 quantize: False
 
-log_frequency: 15
+log_frequency: 30
 
 # network_type: cnn
 # policy_type: logits
@@ -28,8 +28,10 @@ entropy_coef: 0.00
 
 batch_size: 256           # 32 * num_envs
 max_epochs: 3
-num_episodes: 3915        # 3915*1024 = 4008960 = ~4M steps
+num_episodes: 1950        # 1950*1024 = 1996800 = ~2M steps
 max_episode_length: 10000 # = do not truncate (episode usually finishes in under 10k steps)
 rollout_length: 1024      # 16 * 128 (num_envs=16 * Horizon=128)
 
 # https://arxiv.org/pdf/1707.06347 Appendix A table 5
+
+save_frames: False

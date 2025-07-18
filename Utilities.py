@@ -187,9 +187,41 @@ def sigmoid_bound(x: torch.Tensor, M: float) -> torch.Tensor:
 def loss_penalty(I: torch.Tensor, C: torch.Tensor, a: float, b: float, M: float) -> torch.Tensor:
     penalty = ic_penalty(I, C, a, b)            # shape [B, N]
     bounded = sigmoid_bound(penalty, M)         # shape [B, N]
+    # print('[IC PENALTY]', bounded.mean(dim=-1).mean().item())
     return bounded.mean(dim=-1)                 # [B]
 
-def margin_loss(I:torch.Tensor) -> torch.Tensor:
+def margin_loss(I:torch.Tensor) -> Tuple[torch.Tensor]:
+
+    B, N = I.shape
+
+    top2, _ = I.topk(2, dim=-1)                                                     # [B, 2]   
+    I_max = top2[:, 0:1]                                                            # [B, 1]
+    I_2nd = top2[:, 1:2]                                                            # [B, 1]
+    I_min = I.min(dim=-1, keepdim=True).values                                      # [B, 1]
+
+    norm_factor = (I_max - I_min).pow(2) + tol                                      # [B, 1]
+
+    # include I_max in the distances because it contributes 0 to the sum, but divide with N-1 for mean => ignoring it.
+    norm_dists = (I_max - I).pow(2).sum(dim=-1) / ((N-1)*norm_factor.squeeze(-1))   # [B] in [0,1]
+
+    margin_separation_bonus = ((I_max-I_2nd).pow(2) / norm_factor).squeeze(-1)      # [B] in [0,1]
+
+    loss = -(norm_dists + margin_separation_bonus)                                  # [B] in [-2, 0]
+
+    # print('[MARGIN LOSS]', loss.mean().item())
+
+    return -torch.nan_to_num(loss, nan=0.0, posinf=1.0, neginf=0.0)
+    # objective is the negative L2 distance (normalized) from the highest intent to each other intent
+    # encouraging clear separation of highest intent.
+    # a bonus is added if the second highest point is farther away to encourage even more separation of highest and rest.
+    
+
+
+
+    # old implementation (TODO: should probably delete if ^ works)
+
+    # prefer clusters that are far apart to each other
+    # penalize scattered clusters (among each cluster). Spread across high cluster is more important to be minimized so it takes significance 0.8 over 0.2(L)
 
     I_max = I.max(dim=-1, keepdim=True).values
     I_min = I.min(dim=-1, keepdim=True).values
@@ -200,10 +232,6 @@ def margin_loss(I:torch.Tensor) -> torch.Tensor:
 
     H = I.masked_fill(low_mask, -1.0)      # [B, N] with padded nans for indices not belonging to the cluster
     L = I.masked_fill(high_mask, -1.0)     # [B, N] with padded nans for indices not belonging to the cluster
-
-    # print(H)
-
-    # print(L)
 
     Hmin = H.masked_fill(low_mask, float('inf')).min(dim=-1).values       # [B] at least one non-nan in each cluster at N-dim
     Lmax = L.masked_fill(high_mask, float('-inf')).max(dim=-1).values     # [B] at least one non-nan in each cluster at N-dim
@@ -219,9 +247,10 @@ def margin_loss(I:torch.Tensor) -> torch.Tensor:
     denom = Hmin + Lmax + tol
     denom = torch.where(denom.abs() < tol, torch.ones_like(denom) * tol, denom) # distance from 0 is at least tol
 
-    Lmargin = - (Hmin - Lmax)/denom         # [B] in [-1, 0]
-    Lspread = 0.5*(spread_H + spread_L)     # [B] in [0, 1]
-    L_margin_spread = (Lmargin + Lspread)   # [B] in [-1, 1]
+    Lmargin = - (Hmin - Lmax)/denom                 # [B] in [-1, 0]
+    Lspread = (0.8*spread_H + 0.2*spread_L)         # [B] in [0, 1]
+    L_margin_spread = (Lmargin + Lspread)           # [B] in [-1, 1]
+    L_margin_spread = (L_margin_spread + 1) / 2     # [B] in [0, 1]
 
     # sanitization
     return torch.nan_to_num(L_margin_spread, nan=0.0, posinf=1.0, neginf=-1.0)

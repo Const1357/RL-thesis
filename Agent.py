@@ -100,7 +100,7 @@ class Agent():
         log_probs = probs.log_prob(actions)         # [B]
         entropies = probs.entropy()                 # [B] - verified.
 
-        return actions, log_probs, values, entropies
+        return actions, log_probs, values, entropies, raw
     
     @timeit
     def update_value(self, observations: torch.Tensor, returns: torch.Tensor)->float:
@@ -253,6 +253,8 @@ class Agent():
                 policy_loss = - surrogate - self.hyperparameters['entropy_coef']*entropy                # [B] mean reduction later
 
                 # Auxiliarry Loss: (Only for GNN_N)
+                # TODO: try annealing the importance of the auxiliary objectives, especially margin-loss since it can hinder early exploration
+                # and contribute to the observed lag that GNN_N suffers from in contrast to the baseline (Logits)
                 if self.aux_loss:
                     
                     # extract args
@@ -269,10 +271,10 @@ class Agent():
                     stds = stds.squeeze(1)                                          # [B, N]
 
                     I = intents(means)                                              # [B, N]
-                    C = confidences(stds**2)                                        # [B, N]
+                    C = confidences(stds.pow(2))                                    # [B, N]
 
-                    L_penalty = loss_penalty(I, C, a, b, M).clamp(min=0.0, max=M)   # [B] in [0,1] (differentiable bounding transformation)
-                    L_margin_spread = margin_loss(I).clamp(min=-1.0, max=1.0)       # [B] in [-1, 1] (margin in [-1, 0], spread in [0, 1])
+                    L_penalty = loss_penalty(I, C, a, b, M).clamp(min=0.0, max=M)   # [B] in [0, M=1] (differentiable bounding transformation)
+                    L_margin_spread = margin_loss(I).clamp(min=-2.0, max=0.0)       # [B] in [-2, 0]
 
                     with torch.no_grad():
                         total_ppo_loss += policy_loss.mean().item()
@@ -281,8 +283,8 @@ class Agent():
                     
                     # Mixing into Existing Loss
                     mixed_aux_loss = aux_mix*L_penalty + (1-aux_mix)*L_margin_spread
-                    policy_loss = (1- aux_coeff * mixed_aux_loss)*policy_loss       # comment if additive aux loss
-                    # policy_loss = policy_loss + aux_coeff*mixed_aux_loss          # uncomment if additive aux loss
+
+                    policy_loss = policy_loss + aux_coeff*mixed_aux_loss
 
                 policy_loss = policy_loss.mean()                                    # [] scalar, batch-wise averaging
                 total_policy_loss += policy_loss.item()

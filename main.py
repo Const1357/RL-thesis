@@ -16,19 +16,21 @@ import pickle
 
 import random
 
-def make_env(name, config):
+def make_env(name, config, is_log=False):
 
     # ClearnRL implementation was used as inspiration for the make_env function:
     # https://github.com/vwxyzjn/cleanrl/blob/master/cleanrl/ppo_atari.py
+
+    render_mode = 'rgb_array' if is_log and config['save_frames'] else None
 
     def _thunk():
 
         if 'ALE' in name:
             # ALE v5 environments: args in make not env_name.
             # See more: https://ale.farama.org/environments/
-            env = gym.make(name, frameskip=4, obs_type='grayscale', full_action_space=False, repeat_action_probability=0.0) 
+            env = gym.make(name, render_mode=render_mode, frameskip=4, obs_type='grayscale', full_action_space=False, repeat_action_probability=0.0) 
         else:
-            env = gym.make(name)
+            env = gym.make(name, render_mode=render_mode)
 
         if config['quantize']:
             env = BoxToDiscreteWrapper(env, config['num_bins'])
@@ -71,7 +73,7 @@ def main():
     env.reset(seed=seeds)                                                           # Initialization
 
     # Evaluation (Logging) Vector Environments - evaluation happens once every config['log_frequency'] steps
-    log_env_fns = [make_env(ENV_NAME, config) for _ in range(config['num_envs'])]   # num_envs:      E
+    log_env_fns = [make_env(ENV_NAME, config, is_log=True) for _ in range(config['num_envs'])]   # num_envs:      E
     log_env = SyncVectorEnv(log_env_fns)
     log_env.reset(seed=log_seeds)                                                   # Initialization
 

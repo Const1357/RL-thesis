@@ -20,7 +20,7 @@ value_lr: 0.001
 policy_lr: 0.0003
 gamma: 0.99
 gae_lambda: 0.97
-max_KL: 0.005
+max_KL: 0.0
 entropy_coef: 0.0
 
 batch_size: 1024
@@ -28,3 +28,5 @@ max_epochs: 4
 num_episodes: 150
 max_episode_length: 500
 rollout_length: 4096
+
+save_frames: False
