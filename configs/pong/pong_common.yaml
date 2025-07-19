@@ -35,3 +35,4 @@ rollout_length: 1024      # 16 * 128 (num_envs=16 * Horizon=128)
 # https://arxiv.org/pdf/1707.06347 Appendix A table 5
 
 save_frames: False
+log_early_phase: 0

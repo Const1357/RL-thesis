@@ -267,7 +267,7 @@ class Trainer():
                 self.data['penalty_loss_curve'].append(policy_misc['penalty_loss'])
                 self.data['margin_loss_curve'].append(policy_misc['margin_loss'])
 
-            if ep % self.config['log_frequency'] == 0:
+            if ep < self.config['log_early_phase'] or ep % self.config['log_frequency'] == 0:
 
                 rewards, lengths, entropies = self.rollout_for_logging()
 

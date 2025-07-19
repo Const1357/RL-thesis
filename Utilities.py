@@ -155,6 +155,7 @@ def intents(means: torch.Tensor) -> torch.Tensor:
     return torch.exp(means.clamp(min=-30.0, max=30.0))
 
 def confidences(variances: torch.Tensor) -> torch.Tensor:
+    # print('CONFIDENCES', 1/(1+variances.clamp_min(tol)))
     return 1/(1+variances.clamp_min(tol))
 
 def spread(cluster: torch.Tensor, target: torch.Tensor):
@@ -192,6 +193,10 @@ def loss_penalty(I: torch.Tensor, C: torch.Tensor, a: float, b: float, M: float)
 
 def margin_loss(I:torch.Tensor) -> Tuple[torch.Tensor]:
 
+    # objective is the negative L2 distance (normalized) from the highest intent to each other intent
+    # encouraging clear separation of highest intent.
+    # a bonus is added if the second highest point is farther away to encourage even more separation of highest and rest.
+
     B, N = I.shape
 
     top2, _ = I.topk(2, dim=-1)                                                     # [B, 2]   
@@ -210,10 +215,7 @@ def margin_loss(I:torch.Tensor) -> Tuple[torch.Tensor]:
 
     # print('[MARGIN LOSS]', loss.mean().item())
 
-    return -torch.nan_to_num(loss, nan=0.0, posinf=1.0, neginf=0.0)
-    # objective is the negative L2 distance (normalized) from the highest intent to each other intent
-    # encouraging clear separation of highest intent.
-    # a bonus is added if the second highest point is farther away to encourage even more separation of highest and rest.
+    return torch.nan_to_num(loss, nan=0.0, posinf=0.0, neginf=-2.0)
     
 
 

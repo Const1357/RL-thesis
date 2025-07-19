@@ -31,3 +31,4 @@ max_episode_length: 200
 rollout_length: 4096
 
 save_frames: False
+log_early_phase: 0

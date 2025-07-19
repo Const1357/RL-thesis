@@ -274,15 +274,15 @@ class Agent():
                     C = confidences(stds.pow(2))                                    # [B, N]
 
                     L_penalty = loss_penalty(I, C, a, b, M).clamp(min=0.0, max=M)   # [B] in [0, M=1] (differentiable bounding transformation)
-                    L_margin_spread = margin_loss(I).clamp(min=-2.0, max=0.0)       # [B] in [-2, 0]
+                    L_margin = margin_loss(I).clamp(min=-2.0, max=0.0)              # [B] in [-2, 0]
 
                     with torch.no_grad():
                         total_ppo_loss += policy_loss.mean().item()
                         total_penalty_loss += L_penalty.mean().item()
-                        total_margin_loss += L_margin_spread.mean().item()
+                        total_margin_loss += L_margin.mean().item()
                     
                     # Mixing into Existing Loss
-                    mixed_aux_loss = aux_mix*L_penalty + (1-aux_mix)*L_margin_spread
+                    mixed_aux_loss = aux_mix*L_penalty + (1-aux_mix)*L_margin
 
                     policy_loss = policy_loss + aux_coeff*mixed_aux_loss
 

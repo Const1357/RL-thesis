@@ -7,6 +7,11 @@ import seaborn as sns
 
 import re
 
+from scipy.ndimage import gaussian_filter1d  # curve smoothing
+from scipy.interpolate import interp1d
+
+import random
+
 sns.set_style('darkgrid')
 
 environments = ['CartPole-v1', 'Pendulum-v1', 'ALE/Pong-v5']
@@ -149,9 +154,14 @@ for env in environments:
     for experiment in experiments:
         runs = os.listdir(f"runs_final/{env}/pickle/{experiment}/")
 
+        if not 'pendulum' in experiment:
+            continue
+        print(experiment)
+
         data = []
         for run in runs:
             with open(f"runs_final/{env}/pickle/{experiment}/{run}", 'rb') as f:
+                # print(experiment)
                 data.append(pickle.load(f))
 
         x = np.arange(0, data[0]['total_steps'], data[0]['log_steps'])
@@ -226,74 +236,270 @@ for env in environments:
 
         # Plot 2: Average Policy losses (PPO, auxiliarry losses) for GNN_N
         if type_from_name(experiment) == 'GNN_N':
-            fig = plt.figure(figsize=(9,6))
-            plt.ylim(top=1.1, bottom=-1.1)
-            plt.yticks(ticks=np.arange(-20, 20+1, 5)/20, labels=[])
+            fig = plt.figure(figsize=(11,6))
+            plt.ylim(top=1.1, bottom=0)
+            plt.yticks(ticks=np.arange(0, 40+1, 5)/40, labels=[])
             plt.xlim(left=C['left_offset'], right=data[0]['total_steps']+C['right_offset'])
             plt.xticks(range(0, data[0]['total_steps']+1, C['xtick_interval']))
-            # plt.yticks(range(C['min_reward'],C['max_reward']+1, C['ytick_interval']))
 
-            selected_indices = np.arange(0, data[0]['total_steps'], data[0]['log_steps']//data[0]['update_steps'])  # log_frequency
-            selected_indices = selected_indices[selected_indices < data[0]['total_steps']//data[0]['update_steps']] # num_episodes
+            num_episodes = data[0]['total_steps']//data[0]['update_steps']
+            log_frequency = data[0]['log_steps']//data[0]['update_steps']
 
-            policy_loss_curves = [np.array(d['policy_loss_curve'])[selected_indices] for d in data]
-            ppo_loss_curves = [np.array(d['ppo_loss_curve'])[selected_indices] for d in data]
-            penalty_loss_curves = [np.array(d['penalty_loss_curve'])[selected_indices] for d in data]
-            margin_loss_curves = [np.array(d['margin_loss_curve'])[selected_indices] for d in data]
+            selected_indices = np.arange(0, data[0]['total_steps'], log_frequency)  # log_frequency
+            selected_indices = selected_indices[selected_indices < num_episodes] # num_episodes
 
-            stacked_policy_loss_curve = np.stack(policy_loss_curves)
-            stacked_ppo_loss_curve = np.stack(ppo_loss_curves)
-            stacked_penalty_loss_curve = np.stack(penalty_loss_curves)
-            stacked_margin_loss_curve = np.stack(margin_loss_curves)
+            # policy_loss_curves = [np.array(d['policy_loss_curve'])[selected_indices] for d in data]
+            # ppo_loss_curves = [np.array(d['ppo_loss_curve'])[selected_indices] for d in data]
+            # penalty_loss_curves = [np.array(d['penalty_loss_curve'])[selected_indices] for d in data]
+            # margin_loss_curves = [np.array(d['margin_loss_curve'])[selected_indices] for d in data]
 
-            stacked_norm_policy_loss_curve = 0.5*stacked_policy_loss_curve / np.abs(stacked_policy_loss_curve).max(axis=0)
-            stacked_norm_ppo_loss_curve = 0.5*stacked_ppo_loss_curve / np.abs(stacked_ppo_loss_curve).max(axis=0)
-            stacked_norm_penalty_loss_curve = stacked_penalty_loss_curve / np.abs(stacked_penalty_loss_curve).max(axis=0)
-            stacked_norm_margin_loss_curve = stacked_margin_loss_curve / np.abs(stacked_margin_loss_curve).max(axis=0)
+            policy_loss_curves = [np.array(d['policy_loss_curve']) for d in data]
+            ppo_loss_curves = [np.array(d['ppo_loss_curve']) for d in data]
+            penalty_loss_curves = [np.array(d['penalty_loss_curve']) for d in data]
+            margin_loss_curves = [np.array(d['margin_loss_curve']) for d in data]
 
-            mean_policy_loss_curve = stacked_norm_policy_loss_curve.mean(axis=0)
-            mean_ppo_loss_curve = stacked_norm_ppo_loss_curve.mean(axis=0)
-            mean_penalty_loss_curve = stacked_norm_penalty_loss_curve.mean(axis=0)
-            mean_margin_loss_curve = stacked_norm_margin_loss_curve.mean(axis=0)
+            def normalize(curves):
+                curves = np.stack(curves)  # shape: [R, T]
+                min_vals = curves.min(axis=1, keepdims=True)
+                max_vals = curves.max(axis=1, keepdims=True)
+                return (curves - min_vals) / (max_vals - min_vals + 1e-8)
+            
+            def smooth(curve):
+                return gaussian_filter1d(curve, sigma=2)
 
-            std_policy = stacked_norm_policy_loss_curve.std(axis=0)
-            std_ppo = stacked_norm_ppo_loss_curve.std(axis=0)
-            std_penalty = stacked_norm_penalty_loss_curve.std(axis=0)
-            std_margin = stacked_norm_margin_loss_curve.std(axis=0)
+            stacked_norm_policy_loss_curve = normalize(policy_loss_curves)
+            stacked_norm_ppo_loss_curve = normalize(ppo_loss_curves)
+            stacked_norm_penalty_loss_curve = normalize(penalty_loss_curves)
+            stacked_norm_margin_loss_curve = normalize(margin_loss_curves)
 
-            normalized_mean_reward_curve = 2*(mean_reward_curve - mean_reward_curve.min())/(mean_reward_curve.max()-mean_reward_curve.min()) -1 
+
+            mean_policy_loss_curve = gaussian_filter1d(stacked_norm_policy_loss_curve.mean(axis=0), sigma=1)
+            mean_ppo_loss_curve = gaussian_filter1d(stacked_norm_ppo_loss_curve.mean(axis=0), sigma=1)
+            # mean_policy_loss_curve = smooth(stacked_norm_policy_loss_curve.mean(axis=0))
+            # mean_ppo_loss_curve = smooth(stacked_norm_ppo_loss_curve.mean(axis=0))
+            mean_penalty_loss_curve = smooth(stacked_norm_penalty_loss_curve.mean(axis=0))
+            mean_margin_loss_curve = smooth(stacked_norm_margin_loss_curve.mean(axis=0))
+
+            std_policy = smooth(stacked_norm_policy_loss_curve.std(axis=0))
+            std_ppo = smooth(stacked_norm_ppo_loss_curve.std(axis=0))
+            std_penalty = smooth(stacked_norm_penalty_loss_curve.std(axis=0))
+            std_margin = smooth(stacked_norm_margin_loss_curve.std(axis=0))
+
+            normalized_mean_reward_curve = (mean_reward_curve - mean_reward_curve.min())/(mean_reward_curve.max()-mean_reward_curve.min())
+            normalized_entropy_curve = (norm_stacked_entropy_curves-C['min_reward'])/(C['max_reward'] - C['min_reward'])
+
+            _x = np.arange(0, data[0]['total_steps'], data[0]['update_steps'])
+
+            plt.axhline(0.5, color='gray', linestyle='--', linewidth=0.8)
+
+            plt.fill_between(_x, mean_penalty_loss_curve-std_penalty, mean_penalty_loss_curve+std_penalty, alpha=0.2, color=colors[2], edgecolor='none')
+            plt.fill_between(_x, mean_margin_loss_curve-std_margin, mean_margin_loss_curve+std_margin, alpha=0.2, color=colors[3], edgecolor='none')
+
+            plt.plot(_x, mean_penalty_loss_curve, label='Penalty Loss (smoothed)',color=colors[2])
+            plt.plot(_x, mean_margin_loss_curve, label='Margin Loss (smoothed)',color=colors[3])
+            plt.plot(_x, 0.5 + (mean_ppo_loss_curve - mean_ppo_loss_curve.mean())*5, label='PPO Loss (centered x5)',color=colors[0], alpha=1, linewidth='0.7')
+            plt.plot(_x, 0.5 + (mean_policy_loss_curve - mean_policy_loss_curve.mean())*5, label='Mixed Loss (centered x5)',color=colors[1], alpha=1, linewidth='0.7')
             plt.plot(x, normalized_mean_reward_curve, color='black', label='reward')
-
-            plt.plot(x, mean_ppo_loss_curve, label='PPO Loss',color=colors[0])
-            plt.plot(x, mean_policy_loss_curve, label='Mixed Loss',color=colors[1])
-            plt.plot(x, mean_penalty_loss_curve, label='Penalty Loss',color=colors[2])
-            plt.plot(x, mean_margin_loss_curve, label='Margin_Spread Loss',color=colors[3])
+            plt.plot(x, normalized_entropy_curve, color=colors[4], label='entropy')
 
             # plt.fill_between(x, mean_policy_loss_curve-std_policy, mean_policy_loss_curve+std_policy, alpha=0.2, color=colors[0], edgecolor='none')
             # plt.fill_between(x, mean_ppo_loss_curve-std_ppo, mean_ppo_loss_curve+std_ppo, alpha=0.2, color=colors[1], edgecolor='none')
-            plt.fill_between(x, mean_penalty_loss_curve-std_penalty, mean_penalty_loss_curve+std_penalty, alpha=0.2, color=colors[2], edgecolor='none')
-            plt.fill_between(x, mean_margin_loss_curve-std_margin, mean_margin_loss_curve+std_margin, alpha=0.2, color=colors[3], edgecolor='none')
 
-            plt.plot(x,np.zeros_like(x), color='gray', linestyle='--', linewidth=0.6,)
             plt.xlabel('Steps')
             plt.ylabel('Normalized Axis')
             plt.suptitle(f"Objectives: {standardize_individual_label(experiment, env)}", fontweight='bold')
             plt.legend(title=None, loc='upper center', bbox_to_anchor=(0.5, 1.08),
-            ncol=5, frameon=False, fontsize='small')
+            ncol=6, frameon=False, fontsize='small')
 
             savedir_svg = f"runs_final/{env}/plots/policy_loss_curves/svg/"
             savedir_png = f"runs_final/{env}/plots/policy_loss_curves/png/"
             os.makedirs(savedir_svg, exist_ok=True)
             os.makedirs(savedir_png, exist_ok=True)
-            fig.savefig(f"{savedir_svg}{experiment}_GNN_N_policy_losses.svg", format='svg')
-            fig.savefig(f"{savedir_png}{experiment}_GNN_N_policy_losses.png", format='png')
             plt.tight_layout()
+            fig.savefig(f"{savedir_svg}{experiment}_policy_losses.svg", format='svg')
+            fig.savefig(f"{savedir_png}{experiment}_policy_losses.png", format='png')
             plt.close()
 
-        # Plot 3: Policy Loss & Value loss? useless?
+
+            # Plot 2.2 - Scatter plot between Margin Loss and Entropy
+            fig = plt.figure(figsize=(6, 6))
+            f_margin_loss = interp1d(_x, mean_margin_loss_curve, kind='linear')
+            downsampled_margin_loss = f_margin_loss(x)
+            plt.scatter(normalized_entropy_curve, downsampled_margin_loss, alpha=0.6)
+            plt.xlabel("Entropy (Normalized)")
+            plt.ylabel("Margin Loss (Normalized)")
+            plt.suptitle("Correlation between Entropy and Margin Loss", fontweight='bold')
+            plt.title(f"{standardize_individual_label(experiment, env)}")
+            plt.grid(True)
+            plt.ylim(top=1.0, bottom=0.0)
+            plt.tight_layout()
+            savedir_svg = f"runs_final/{env}/plots/policy_loss_curves/svg/"
+            savedir_png = f"runs_final/{env}/plots/policy_loss_curves/png/"
+            os.makedirs(savedir_svg, exist_ok=True)
+            os.makedirs(savedir_png, exist_ok=True)
+            fig.savefig(f"{savedir_svg}{experiment}_scatter_entropy_margin.svg", format='svg')
+            fig.savefig(f"{savedir_png}{experiment}_scatter_entropy_margin.png", format='png')
+            plt.close()
+
+            # Plot 2.3 - Intent-Confidence evolution (averaged per-action for selected timesteps of a specific run (run 0)
+
+            milestone_idx = [int(p * len(x)) for p in [0.0, 0.02, 0.05, 0.4, 0.60, 0.90]]
+            fig, axes = plt.subplots(
+                nrows=len(milestone_idx),
+                figsize=(7, 1.27 * len(milestone_idx)),
+                sharex=True
+            )
+
+            sampled_episode_steps = []
+            all_intents = []
+            all_confidences = []
+            all_selected_actions = []
+
+            for idx in milestone_idx:
+                intents_trajectory = data[0]['intent_evolution']
+                confidences_trajectory = data[0]['confidence_evolution']
+                selected_actions_trajectory = data[0]['selected_actions']
+
+                episode_length = len(intents_trajectory[idx])
+                sample_range = (int(0.25 * episode_length), int(0.75 * episode_length))
+                sampled_episode_step = random.randint(*sample_range)
+                sampled_episode_steps.append(sampled_episode_step)
+
+                intents = np.array(intents_trajectory[idx][sampled_episode_step])
+                confidences = np.array(confidences_trajectory[idx][sampled_episode_step])
+                selected_action = selected_actions_trajectory[idx][sampled_episode_step]
+
+                all_intents.append(intents)
+                all_confidences.append(confidences)
+                all_selected_actions.append(selected_action)
+
+            # Global log normalization bounds
+            max_intent = np.log(np.max([np.max(i) for i in all_intents]) + 1e-9)
+            min_intent = np.log(np.min([np.min(i) for i in all_intents]) + 1e-9)
+
+            from matplotlib.colors import Normalize
+            from matplotlib import cm
+
+            norm = Normalize(vmin=0, vmax=1)
+            cmap = cm.viridis
+
+            for i, idx in enumerate(milestone_idx):
+                ax = axes[i]
+                
+                intents = all_intents[i]
+                confidences = all_confidences[i]
+                selected_action = all_selected_actions[i]
+
+                norm_intents = (np.log(intents + 1e-9) - min_intent) / (max_intent - min_intent + 1e-7)
+                action_indices = np.arange(len(intents))
+
+                sizes = confidences * 50
+
+                # Map confidence to colors via colormap
+                color_values = [cmap(norm(c)) for c in confidences]
+
+                # Plot all non-selected actions
+                for j in range(len(intents)):
+                    if j == selected_action:
+                        continue
+                    ax.scatter(
+                        norm_intents[j], action_indices[j],
+                        s=sizes[j],
+                        c=[color_values[j]],
+                        alpha=0.9,
+                        marker='o',
+                        edgecolors='black',
+                        linewidths=0.5
+                    )
+
+                # Plot selected action with a distinct marker
+                if 0 <= selected_action < len(intents):
+                    ax.scatter(
+                        norm_intents[selected_action], action_indices[selected_action],
+                        s=sizes[selected_action],
+                        c=[color_values[selected_action]],
+                        alpha=1.0,
+                        marker='D',  # distinct marker
+                        edgecolors='black',
+                        linewidths=0.6
+                    )
+        
+                ax.set_yticks(action_indices)
+                ax.set_yticklabels([f"Action {j}" for j in action_indices], fontsize=7)
+                ax.set_xlim(-0.02, 1.02)
+                # ax.set_ylim(-1, len(intents))
+                ax.set_ylim(len(intents), -1)
+                ax.yaxis.grid(True, alpha=0.75)
+                ax.set_ylabel(f"{idx}%", rotation=0, labelpad=30,
+                            va='center', ha='right',
+                            fontsize=10, fontweight='bold')
+                ax.text(
+                0.1,                         # X-position (center in axis coordinates)
+                1.02,                        # Y-position slightly above the top
+                f"{idx}% Training Steps",    # Your label
+                transform=ax.transAxes,      # Use axis coordinate system
+                ha='center', va='bottom',
+                fontsize=8,
+                )
+                
+            from matplotlib.lines import Line2D
+
+            legend_elements = [
+                Line2D([0], [0], marker='D', color='w', label='Selected Action',
+                    markerfacecolor='gray', markersize=6, markeredgecolor='black'),
+                Line2D([0], [0], marker='o', color='w', label='Other Actions',
+                    markerfacecolor='gray', markersize=6, markeredgecolor='black')
+            ]
+
+            # Add legend to the topmost axis
+            axes[0].legend(handles=legend_elements, loc='upper left', fontsize=8, frameon=False)
+                
+
+            # Shared X-axis
+            axes[-1].set_xlabel('Intent (Normalized Logarithmic Scale)', fontsize=12, fontweight='bold')
+
+            # Title (inside plotting area)
+            fig.subplots_adjust(top=0.87, right=1.0, hspace=0.5)
+
+
+            fig.suptitle(
+                "Intent–Confidence Distribution at Selected Milestones",
+                fontsize=13, fontweight='bold'
+            )
+            fig.text(
+                0.5, 0.92,
+                f"{standardize_individual_label(experiment, env)}",
+                fontsize=10,
+                ha='center'
+            )
+
+            # Create a mappable object for the colorbar (needed even if scatter handles colormap)
+            from matplotlib.cm import ScalarMappable
+
+            sm = ScalarMappable(cmap=cmap, norm=norm)
+            sm.set_array([])  # required dummy array
+
+            # Add a vertical colorbar to the right of all subplots
+            cbar = fig.colorbar(
+                sm,
+                ax=axes,              # span all subplots
+                orientation='vertical',
+                pad=0.02,             # space between last subplot and colorbar
+                shrink=1.0,           # adjust if your plots are very tall
+                aspect=25             # controls thickness
+            )
+            cbar.set_label("Confidence", fontsize=10, fontweight='bold')
+            cbar.ax.invert_yaxis()
+
+            savedir_svg = f"runs_final/{env}/plots/policy_loss_curves/svg/"
+            savedir_png = f"runs_final/{env}/plots/policy_loss_curves/png/"
+            os.makedirs(savedir_svg, exist_ok=True)
+            os.makedirs(savedir_png, exist_ok=True)
+            fig.savefig(f"{savedir_svg}{experiment}_IC_distribution.svg", format='svg')
+            fig.savefig(f"{savedir_png}{experiment}_IC_distribution.png", format='png')
+            plt.close()
 
     
-    # plt.show()
     # For ALL experiments together:
 
     # Group per modification
@@ -301,6 +507,10 @@ for env in environments:
     types = ['logits', 'GNN', 'GNN_K', 'GNN_N']
 
     for mod in mods:
+
+        if not 'pendulum' in experiment:
+            continue
+        print(experiment)
 
         # Plot 1: Reward = f(Episode) - only mean runs and their stds, for each experiment (in the same plot)
         fig = plt.figure(figsize=(9,6))
