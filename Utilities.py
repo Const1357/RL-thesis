@@ -154,9 +154,8 @@ def gaussian_mixture_integral(means: torch.Tensor, stds: torch.Tensor, weights: 
 def intents(means: torch.Tensor) -> torch.Tensor:
     return torch.exp(means.clamp(min=-30.0, max=30.0))
 
-def confidences(variances: torch.Tensor) -> torch.Tensor:
-    # print('CONFIDENCES', 1/(1+variances.clamp_min(tol)))
-    return 1/(1+variances.clamp_min(tol))
+def confidences(bs: torch.Tensor) -> torch.Tensor:
+    return fn.softmax(bs, dim=-1)
 
 def spread(cluster: torch.Tensor, target: torch.Tensor):
 
@@ -256,6 +255,13 @@ def margin_loss(I:torch.Tensor) -> Tuple[torch.Tensor]:
 
     # sanitization
     return torch.nan_to_num(L_margin_spread, nan=0.0, posinf=1.0, neginf=-1.0)
+
+def aligmnent_loss(c: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
+
+    x = x.detach()
+    assert not x.requires_grad()
+
+
 
 # ---------------------------------- Profiling ---------------------------------------
 

@@ -120,7 +120,7 @@ def create_policy_network(input_size: int, output_size: int, config: dict[str, A
                            hidden_layers=NETWORK_CONFIGS[config['network_type']][config['policy_net_size']],
                            name=config['policy_net_size'],
                            N = output_size,
-                           noise_coeff=config['noise_coeff'])
+                           confidence_hidden_multiplier=config['confidence_hidden_multiplier'])
         
     elif config['network_type'] == 'cnn':        # input shape is hardcoded for ALE environments only: 4x84x84 (grayscale framestack)
 

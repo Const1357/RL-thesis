@@ -167,15 +167,15 @@ class GNN_N_MLP(PolicyNetwork):
                  input_size,
                  hidden_layers,
                  N,         # action space size (N)
-                 noise_coeff = 0.05,
+                 confidence_hidden_multiplier = 2,
                  name = '',):
         super(GNN_N_MLP, self).__init__()
 
         self.N = N
         self.input_size = input_size
         self.output_size = 2*N            # (mean, variance) for each of N actions
+        self.conf_mul = confidence_hidden_multiplier
         self._name = name
-        self.noise_coeff = noise_coeff
 
         # Network that outputs 2 values: mean and std
         layers = []
@@ -187,28 +187,45 @@ class GNN_N_MLP(PolicyNetwork):
         layers.append(nn.Linear(last_size, self.output_size))
         self.network = nn.Sequential(*layers).to(device)
 
+        self.confidence_head = nn.Sequential(
+            nn.Linear(2*N, self.conf_mul*N),
+            nn.LeakyReLU(),
+            nn.Linear(self.conf_mul*N, N)
+        )
+
     def forward(self, observation: torch.Tensor):
         
         B, O = observation.shape            # [B, O]
 
         out = self.network(observation)     # [B, 2*N] -> 2*N= (0.μ, 1.σ)*N
 
-        means = out[:,:self.N]              # [B, N]
-        stds = out[:,self.N:2*self.N]       # [B, N]
+        xs = out[:,:self.N]              # [B, N]
+        premature_bs = out[:,self.N:2*self.N]       # [B, N]
 
-        stds = fn.softplus(stds) + tol      # [B, N]  softplus for numerical stability
-        stds = stds.clamp_min(tol)
+        cat_input = torch.cat((premature_bs, xs.detach()), dim=-1)
+        bs = self.confidence_head(cat_input)
+        cs = confidences(bs)
+        log_cs = torch.log(cs + tol)
 
-        normal = torch.distributions.Normal(means, stds)
+        np_cs = cs[0].detach().cpu().numpy().argsort()
+        np_xs = xs[0].detach().cpu().numpy().argsort()
+        # print(np.abs(np_cs-np_xs).mean())
+        # print('Alignment Diff ',np.abs(cs[0].detach().cpu().numpy() - xs[0].detach().cpu().numpy()).mean())
+        # stds = fn.softplus(stds) + tol      # [B, N]  softplus for numerical stability
+        # stds = stds.clamp_min(tol)
+        utilities = (xs + log_cs - log_cs.mean()).clamp(-20.0, 20.0)
+        dist = Categorical(logits=utilities)
+
+        # normal = torch.distributions.Normal(means, stds)
         # sample a z-score from each gaussian for each action (N) using the reparametrization trick
-        samples = normal.rsample()
-        samples = means + self.noise_coeff*(samples-means)  # [B, N]    # noise_coeff so that samples stay close to the mean
+        # samples = normal.rsample()
+        # samples = means + self.noise_coeff*(samples-means)  # [B, N]    # noise_coeff so that samples stay close to the mean
 
-        logits = samples.clamp(-20.0, 20.0)
+        # logits = samples.clamp(-20.0, 20.0)
 
-        dist = Categorical(logits=logits)
+        # dist = Categorical(logits=logits)
 
-        return dist, (means, stds)                          # [B, N]
+        return dist, (xs, cs)                          # [B, N] each
 
 
 
