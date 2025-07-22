@@ -115,8 +115,8 @@ def create_policy_network(input_size: int, output_size: int, config: dict[str, A
             return net
 
 
-        elif config['policy_type'] == 'GNN_N':
-            return GNN_N_MLP(input_size=input_size,
+        elif config['policy_type'] == 'CMU':
+            return CMU_MLP(input_size=input_size,
                            hidden_layers=NETWORK_CONFIGS[config['network_type']][config['policy_net_size']],
                            name=config['policy_net_size'],
                            N = output_size,
@@ -136,5 +136,5 @@ def create_policy_network(input_size: int, output_size: int, config: dict[str, A
         # elif config['policy_type'] == 'GNN_K':
         #     return GNN_K_CNN()
 
-        elif config['policy_type'] == 'GNN_N':
+        elif config['policy_type'] == 'CMUNet':
             return GNN_N_CNN(output_size, 4, 84, 84, conv_layers, fc_layers, noise_coeff=config['noise_coeff'])

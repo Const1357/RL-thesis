@@ -1,8 +1,8 @@
-# cartpole_GNN_N_.yaml
-experiment_name: cartpole_GNN_N_mlp
+# cartpole_CMU_.yaml
+experiment_name: cartpole_CMU_mlp
 
 network_type: mlp
-policy_type: GNN_N
+policy_type: CMU
 
 noise_coeff: 1
 

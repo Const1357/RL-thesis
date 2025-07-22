@@ -1,8 +1,8 @@
-# pong_GNN_N_.yaml
-experiment_name: pong_GNN_N_entropy_cnn
+# pong_CMU_.yaml
+experiment_name: pong_CMU_entropy_cnn
 
 network_type: cnn
-policy_type: GNN_N
+policy_type: CMU
 
 noise_coeff: 0.05
 

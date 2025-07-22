@@ -217,49 +217,13 @@ def margin_loss(I:torch.Tensor) -> Tuple[torch.Tensor]:
     return torch.nan_to_num(loss, nan=0.0, posinf=0.0, neginf=-2.0)
     
 
-
-
-    # old implementation (TODO: should probably delete if ^ works)
-
-    # prefer clusters that are far apart to each other
-    # penalize scattered clusters (among each cluster). Spread across high cluster is more important to be minimized so it takes significance 0.8 over 0.2(L)
-
-    I_max = I.max(dim=-1, keepdim=True).values
-    I_min = I.min(dim=-1, keepdim=True).values
-    radius = (I_max - I_min) / 2
-
-    high_mask = (I_max - I) < radius
-    low_mask = ~high_mask
-
-    H = I.masked_fill(low_mask, -1.0)      # [B, N] with padded nans for indices not belonging to the cluster
-    L = I.masked_fill(high_mask, -1.0)     # [B, N] with padded nans for indices not belonging to the cluster
-
-    Hmin = H.masked_fill(low_mask, float('inf')).min(dim=-1).values       # [B] at least one non-nan in each cluster at N-dim
-    Lmax = L.masked_fill(high_mask, float('-inf')).max(dim=-1).values     # [B] at least one non-nan in each cluster at N-dim
-
-    Hmin = torch.clamp(Hmin, min=-1e6, max=1e6)
-    Lmax = torch.clamp(Lmax, min=-1e6, max=1e6)
-
-    # Spread of Clusters
-    spread_H = spread(H, Hmin)                  # [B]
-    spread_L = spread(L, Lmax)                  # [B]
-
-    # Margin term: maximize separation between margin points in clusters
-    denom = Hmin + Lmax + tol
-    denom = torch.where(denom.abs() < tol, torch.ones_like(denom) * tol, denom) # distance from 0 is at least tol
-
-    Lmargin = - (Hmin - Lmax)/denom                 # [B] in [-1, 0]
-    Lspread = (0.8*spread_H + 0.2*spread_L)         # [B] in [0, 1]
-    L_margin_spread = (Lmargin + Lspread)           # [B] in [-1, 1]
-    L_margin_spread = (L_margin_spread + 1) / 2     # [B] in [0, 1]
-
-    # sanitization
-    return torch.nan_to_num(L_margin_spread, nan=0.0, posinf=1.0, neginf=-1.0)
-
 def aligmnent_loss(c: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
 
     x = x.detach()
     assert not x.requires_grad()
+    # TODO design a loss that aligns c vector with x vector by order of magnitudes, not magnitudes themselves.
+    # incentivize the model to provide high confidence to high preference actions. The ratio xi/ci should not be consistent for all i
+    # avoid learning the same thing twice
 
 
 

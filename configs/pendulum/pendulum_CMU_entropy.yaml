@@ -1,8 +1,10 @@
-# pendulum_GNN_N_.yaml
-experiment_name: pendulum_GNN_N_mlp
+# pendulum_CMU_entropy.yaml
+experiment_name: pendulum_CMU_entropy_mlp
 
 network_type: mlp
-policy_type: GNN_N
+policy_type: CMU
+
+entropy_coef: 0.005
 
 confidence_hidden_multiplier: 2
 

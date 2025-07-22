@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # envs=("cartpole" "pendulum")
-# types=("logits" "GNN" "GNN_K" "GNN_N")
+# types=("logits" "GNN" "GNN_K" "CMU")
 # mods=("" "noise" "entropy" "noise_entropy")
 
 # for env in "${envs[@]}"; do
@@ -12,7 +12,7 @@
 #     done
 # done
 
-# Manual unrolled (explicit) version because of differences in configurations (GNN_N does not have noise, pong does not have GNN, GNN_K etc.)
+# Manual unrolled (explicit) version because of differences in configurations (CMU does not have noise, pong does not have GNN, GNN_K etc.)
 
 # ./scripts/gather5.sh "./scripts/runner.sh cartpole logits"
 # ./scripts/gather5.sh "./scripts/runner.sh cartpole logits entropy"
@@ -26,8 +26,8 @@
 # ./scripts/gather5.sh "./scripts/runner.sh cartpole GNN_K entropy"
 # ./scripts/gather5.sh "./scripts/runner.sh cartpole GNN_K noise"
 # ./scripts/gather5.sh "./scripts/runner.sh cartpole GNN_K noise_entropy"
-# ./scripts/gather5.sh "./scripts/runner.sh cartpole GNN_N"
-# ./scripts/gather5.sh "./scripts/runner.sh cartpole GNN_N entropy"
+# ./scripts/gather5.sh "./scripts/runner.sh cartpole CMU"
+# ./scripts/gather5.sh "./scripts/runner.sh cartpole CMU entropy"
 
 # ./scripts/gather5.sh "./scripts/runner.sh pendulum logits"
 # ./scripts/gather5.sh "./scripts/runner.sh pendulum logits entropy"
@@ -41,8 +41,8 @@
 # ./scripts/gather5.sh "./scripts/runner.sh pendulum GNN_K entropy"
 # ./scripts/gather5.sh "./scripts/runner.sh pendulum GNN_K noise"
 # ./scripts/gather5.sh "./scripts/runner.sh pendulum GNN_K noise_entropy"
-./scripts/gather3.sh "./scripts/runner.sh pendulum GNN_N"
-# ./scripts/gather3.sh "./scripts/runner.sh pendulum GNN_N entropy"
+./scripts/gather3.sh "./scripts/runner.sh pendulum CMU"
+# ./scripts/gather3.sh "./scripts/runner.sh pendulum CMU entropy"
 
 # ./scripts/gather3.sh "./scripts/runner.sh pong logits entropy"
-# ./scripts/gather3.sh "./scripts/runner.sh pong GNN_N entropy"
+# ./scripts/gather3.sh "./scripts/runner.sh pong CMU entropy"
