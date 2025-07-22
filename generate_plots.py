@@ -75,8 +75,8 @@ def key_from_name(experiment: str) -> str:
     
 
 def type_from_name(label: str) -> str:
-    if 'GNN_N' in label:
-        return 'GNN_N'
+    if 'CMU' in label:
+        return 'CMU'
     elif 'GNN_K' in label:
         return 'GNN_K'
     elif 'logits' in label:
@@ -93,6 +93,7 @@ def standardize_mod(mod: str) -> str:
 def standardize_label(label: str) -> str:
     type = type_from_name(label)
     if type == 'logits': type = 'Logits (Baseline)'
+    if type == 'CMU': type = 'CMU-Net'
     mod = key_from_name(label)
     mod = standardize_mod(mod)
     # return f"{type} - {mod}"
@@ -101,6 +102,7 @@ def standardize_label(label: str) -> str:
 def standardize_individual_label(label: str, env: str) -> str:
     type = type_from_name(label)
     if type == 'logits': type = 'Logits (Baseline)'
+    if type == 'CMU': type = 'CMU-Net'
     mod = key_from_name(label)
     mod = standardize_mod(mod)
     env = standard_environments[env]
@@ -148,7 +150,7 @@ for env in environments:
         'logits' : colors[0],
         'GNN' : colors[1],
         'GNN_K' : colors[2],
-        'GNN_N' : colors[3],
+        'CMU' : colors[3],
    }
 
     for experiment in experiments:
@@ -234,8 +236,8 @@ for env in environments:
         plt.close()
         
 
-        # Plot 2: Average Policy losses (PPO, auxiliarry losses) for GNN_N
-        if type_from_name(experiment) == 'GNN_N':
+        # Plot 2: Average Policy losses (PPO, auxiliarry losses) for CMU
+        if type_from_name(experiment) == 'CMU':
             fig = plt.figure(figsize=(11,6))
             plt.ylim(top=1.1, bottom=0)
             plt.yticks(ticks=np.arange(0, 40+1, 5)/40, labels=[])
@@ -393,7 +395,6 @@ for env in environments:
                 norm_intents = (np.log(intents + 1e-9) - min_intent) / (max_intent - min_intent + 1e-7)
                 action_indices = np.arange(len(intents))
 
-                sizes = confidences * 50
 
                 # Map confidence to colors via colormap
                 color_values = [cmap(norm(c)) for c in confidences]
@@ -404,7 +405,7 @@ for env in environments:
                         continue
                     ax.scatter(
                         norm_intents[j], action_indices[j],
-                        s=sizes[j],
+                        s=40,
                         c=[color_values[j]],
                         alpha=0.9,
                         marker='o',
@@ -416,7 +417,7 @@ for env in environments:
                 if 0 <= selected_action < len(intents):
                     ax.scatter(
                         norm_intents[selected_action], action_indices[selected_action],
-                        s=sizes[selected_action],
+                        s=50,
                         c=[color_values[selected_action]],
                         alpha=1.0,
                         marker='D',  # distinct marker
@@ -496,7 +497,7 @@ for env in environments:
             os.makedirs(savedir_svg, exist_ok=True)
             os.makedirs(savedir_png, exist_ok=True)
             fig.savefig(f"{savedir_svg}{experiment}_IC_distribution.svg", format='svg')
-            fig.savefig(f"{savedir_png}{experiment}_IC_distribution.png", format='png')
+            fig.savefig(f"{savedir_png}{experiment}_IC_distribution.png", format='png', dpi=300)
             plt.close()
 
     
@@ -504,7 +505,7 @@ for env in environments:
 
     # Group per modification
     mods = ['no_mod', 'noise', 'entropy', 'noise_entropy']
-    types = ['logits', 'GNN', 'GNN_K', 'GNN_N']
+    types = ['logits', 'GNN', 'GNN_K', 'CMU']
 
     for mod in mods:
 

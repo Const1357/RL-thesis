@@ -41,8 +41,8 @@
 # ./scripts/gather5.sh "./scripts/runner.sh pendulum GNN_K entropy"
 # ./scripts/gather5.sh "./scripts/runner.sh pendulum GNN_K noise"
 # ./scripts/gather5.sh "./scripts/runner.sh pendulum GNN_K noise_entropy"
-./scripts/gather3.sh "./scripts/runner.sh pendulum CMU"
-# ./scripts/gather3.sh "./scripts/runner.sh pendulum CMU entropy"
+./scripts/gather5.sh "./scripts/runner.sh pendulum CMU"
+./scripts/gather5.sh "./scripts/runner.sh pendulum CMU entropy"
 
 # ./scripts/gather3.sh "./scripts/runner.sh pong logits entropy"
 # ./scripts/gather3.sh "./scripts/runner.sh pong CMU entropy"
