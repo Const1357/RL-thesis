@@ -216,14 +216,45 @@ def margin_loss(I:torch.Tensor) -> Tuple[torch.Tensor]:
 
     return torch.nan_to_num(loss, nan=0.0, posinf=0.0, neginf=-2.0)
     
+import torchsort
 
 def aligmnent_loss(c: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
 
+
     x = x.detach()
-    assert not x.requires_grad()
-    # TODO design a loss that aligns c vector with x vector by order of magnitudes, not magnitudes themselves.
-    # incentivize the model to provide high confidence to high preference actions. The ratio xi/ci should not be consistent for all i
-    # avoid learning the same thing twice
+    assert not x.requires_grad
+
+    
+    # Spearman's rank correlation loss:
+    # rank = argsort = the positions of the elements if the vector would be sorted
+    # alignment loss should aim to have rank(c) = rank(x), so as to align high confidence with high preference.
+
+    # argsort is NOT differentiable and will not allow gradients to flow. Solution: Using a differentiable sorting method.
+    # https://arxiv.org/abs/2002.08871 - "Fast Differentiable Sorting and Ranking"
+    # torchsort module has the implementation from the above paper: https://github.com/teddykoker/torchsort
+
+    def spearmanr(pred: torch.Tensor, target: torch.Tensor, **kw) -> torch.Tensor:
+        # adapted from source^ for batched inputs
+        pred = torchsort.soft_rank(pred, **kw)
+        target = torchsort.soft_rank(target, **kw)
+
+        pred = pred - pred.mean(dim=-1, keepdim=True)
+        pred = pred / pred.norm(dim=-1, keepdim=True)
+
+        target = target - target.mean(dim=-1, keepdim=True)
+        target = target / target.norm(dim=-1, keepdim=True)
+
+        return (pred * target).sum(dim=-1)
+
+    # spearmanr \in [-1,1], where 1 means perfect correlation (wanted) and -1 means perfect inverse correlation.
+    # losses are minimized => flipping the sign. Adding 1 so that loss >= 0
+    loss = 1 - spearmanr(c, x)          # [B]
+
+    # print('[ALIGNMENT]', loss[0].item())
+    # print(c[0].detach().cpu().numpy().tolist())
+    # print(x[0].detach().cpu().numpy().tolist())
+    return loss
+
 
 
 

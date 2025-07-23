@@ -1,10 +1,8 @@
-# pendulum_CMU_entropy.yaml
-experiment_name: pendulum_CMU_entropy_mlp
+# pendulum_ablation_.yaml
+experiment_name: pendulum_ablation_mlp
 
 network_type: mlp
 policy_type: CMU
-
-entropy_coef: 0.005
 
 confidence_hidden_multiplier: 2
 

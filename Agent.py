@@ -218,6 +218,7 @@ class Agent():
         if self.aux_loss:
             with torch.no_grad():       # simply for logging
                 total_ppo_loss = 0
+                total_alignment_loss = 0
                 total_penalty_loss = 0
                 total_margin_loss = 0
 
@@ -252,39 +253,52 @@ class Agent():
                 surrogate = torch.min(ratio*batch_advantages, clipped_ratio*batch_advantages)           # [B]
                 policy_loss = - surrogate - self.hyperparameters['entropy_coef']*entropy                # [B] mean reduction later
 
-                # Auxiliarry Loss: (Only for GNN_N)
-                # TODO: try annealing the importance of the auxiliary objectives, especially margin-loss since it can hinder early exploration
-                # and contribute to the observed lag that GNN_N suffers from in contrast to the baseline (Logits)
+                # Auxiliarry Loss: (Only for CMU)
                 if self.aux_loss:
                     
                     # extract args
-                    a = self.aux_loss_kwargs.get('a', 0.1)
-                    b = self.aux_loss_kwargs.get('b', 0.1)
-                    M = self.aux_loss_kwargs.get('M', 1)
+                    aux_strength = self.aux_loss_kwargs.get('aux_strength', 0.02)
+                    if aux_strength:
+                        
+                        a = self.aux_loss_kwargs.get('a', 0.1)
+                        b = self.aux_loss_kwargs.get('b', 0.1)
+                        M = self.aux_loss_kwargs.get('M', 1)
 
-                    aux_coeff = self.aux_loss_kwargs.get('aux_coeff', 0.02)
-                    aux_mix = self.aux_loss_kwargs.get('aux_mix', 0.5)
+                        aux_coeffs = self.aux_loss_kwargs.get('aux_coeffs', {
+                            'alignment' : 0,
+                            'penalty' : 0,
+                            'margin' : 0,
+                        })
 
-                    # raw contains the raw output of the network, shaped into mean and std tensors
-                    means, stds = raw                                               # [B, E, N], squeeze E
-                    means = means.squeeze(1)                                        # [B, N]
-                    stds = stds.squeeze(1)                                          # [B, N]
+                        total = sum(aux_coeffs.values())
+                        coeffs = {k: (v / total if total > 0 else 0) for k, v in aux_coeffs.items()}
+                        # relative strength of each objective. Sum = 1 if not all 0, else 0
 
-                    I = intents(means)                                              # [B, N]
-                    C = confidences(stds.pow(2))                                    # [B, N]
+                        # raw contains the raw output of the network, shaped into mean and std tensors
+                        xs, cs = raw                                                    # [B, E, N], squeeze E
+                        xs = xs.squeeze(1)                                              # [B, N]
+                        cs = cs.squeeze(1)                                              # [B, N]
 
-                    L_penalty = loss_penalty(I, C, a, b, M).clamp(min=0.0, max=M)   # [B] in [0, M=1] (differentiable bounding transformation)
-                    L_margin = margin_loss(I).clamp(min=-2.0, max=0.0)              # [B] in [-2, 0]
+                        Is = intents(xs)                                                # [B, N]
 
-                    with torch.no_grad():
-                        total_ppo_loss += policy_loss.mean().item()
-                        total_penalty_loss += L_penalty.mean().item()
-                        total_margin_loss += L_margin.mean().item()
-                    
-                    # Mixing into Existing Loss
-                    mixed_aux_loss = aux_mix*L_penalty + (1-aux_mix)*L_margin
+                        L_alignment = aligmnent_loss(cs, xs).clamp(min=0.0, max=2.0)    # [B] in [0, 2]
+                        L_penalty = loss_penalty(Is, cs, a, b, M).clamp(min=0.0, max=M) # [B] in [0, M=1] (differentiable bounding transformation)
+                        L_margin = margin_loss(Is).clamp(min=-2.0, max=0.0)             # [B] in [-2, 0]
 
-                    policy_loss = policy_loss + aux_coeff*mixed_aux_loss
+                        with torch.no_grad():
+                            total_ppo_loss       += policy_loss.mean().item()
+                            total_alignment_loss += L_alignment.mean().item() if aux_coeffs['alignment'] else 0
+                            total_penalty_loss   += L_penalty.mean().item()   if aux_coeffs['penalty']   else 0
+                            total_margin_loss    += L_margin.mean().item()    if aux_coeffs['margin']    else 0
+                        
+                        # Mixing into Existing Loss
+                        mixed_aux_loss = coeffs['alignment'] * L_alignment + coeffs['penalty']*L_penalty + coeffs['margin']*L_margin
+
+                        policy_loss = policy_loss + aux_strength*mixed_aux_loss
+
+                    else:
+                        with torch.no_grad():
+                            total_ppo_loss += policy_loss.mean().item()
 
                 policy_loss = policy_loss.mean()                                    # [] scalar, batch-wise averaging
                 total_policy_loss += policy_loss.item()
@@ -324,6 +338,7 @@ class Agent():
         if self.aux_loss:
             return total_policy_loss/total_steps, {
                 'ppo_loss': total_ppo_loss/total_steps,
+                'alignment_loss': total_alignment_loss/total_steps,
                 'penalty_loss': total_penalty_loss/total_steps,
                 'margin_loss': total_margin_loss/total_steps,
                 }

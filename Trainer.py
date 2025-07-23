@@ -65,6 +65,7 @@ class Trainer():
 
         if self.aux_loss:
             self.data['ppo_loss_curve'] = []
+            self.data['alignment_loss_curve'] = []
             self.data['margin_loss_curve'] = []
             self.data['penalty_loss_curve'] = []
 
@@ -264,6 +265,7 @@ class Trainer():
             self.data['value_loss_curve'].append(value_loss)
             if self.aux_loss:
                 self.data['ppo_loss_curve'].append(policy_misc['ppo_loss'])
+                self.data['alignment_loss_curve'].append(policy_misc['alignment_loss'])
                 self.data['penalty_loss_curve'].append(policy_misc['penalty_loss'])
                 self.data['margin_loss_curve'].append(policy_misc['margin_loss'])
 
