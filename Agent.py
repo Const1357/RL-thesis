@@ -274,8 +274,8 @@ class Agent():
                         coeffs = {k: (v / total if total > 0 else 0) for k, v in aux_coeffs.items()}
                         # relative strength of each objective. Sum = 1 if not all 0, else 0
 
-                        # raw contains the raw output of the network, shaped into mean and std tensors
-                        xs, cs = raw                                                    # [B, E, N], squeeze E
+                        # raw contains useful outputs from the network, shaped into appropriate tensors for ease of handling
+                        xs, cs, _ = raw                                                 # [B, E, N], squeeze E
                         xs = xs.squeeze(1)                                              # [B, N]
                         cs = cs.squeeze(1)                                              # [B, N]
 

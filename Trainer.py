@@ -71,6 +71,7 @@ class Trainer():
 
             self.data['intent_evolution'] = []
             self.data['confidence_evolution'] = []
+            self.data['action_probabilities'] = []
             self.data['selected_actions'] = []
 
             if self.config['save_frames']:
@@ -171,9 +172,10 @@ class Trainer():
             all_lengths   = []              # completed-episode lengths    
             all_entropies = []              # completed-episode entropies
 
-            if self.aux_loss:               # for GNN_N: Logging only for a specific environment
-                env0_intents = []           # completed-episode intents per step ( 
-                env0_confidences = []       # completed-episode confidences per step (for a specific environment, not for all environments)
+            if self.aux_loss:               # for CMU: Logging only for a specific environment
+                env0_intents = []           # completed-episode intents per step
+                env0_confidences = []       # completed-episode confidences per step
+                env0_probabilities = []     # completed-episode action probabilities per step
                 env0_selected_action = []   # completed-episode selected actions per step
                 if self.config['save_frames']:
                     env0_frames = []
@@ -206,12 +208,13 @@ class Trainer():
 
                     if self.aux_loss and i == 0:
                         with torch.no_grad():
-                            means = raw[0][i]
-                            stds = raw[1][i]
-                            I = intents(means)
-                            C = confidences(stds.pow(2))
+                            x = raw[0][i].detach()
+                            C = raw[1][i].detach()
+                            probs = raw[2][i].detach()
+                            I = intents(x)
                             env0_intents.append(I.detach().cpu().numpy())
                             env0_confidences.append(C.detach().cpu().numpy())
+                            env0_probabilities.append(probs.detach().cpu().numpy())
                             env0_selected_action.append(actions[i].item())
 
                     ep_rewards[i] += rewards[i]
@@ -231,6 +234,7 @@ class Trainer():
             if self.aux_loss:
                 self.data['intent_evolution'].append(env0_intents)
                 self.data['confidence_evolution'].append(env0_confidences)
+                self.data['action_probabilities'].append(env0_probabilities)
                 self.data['selected_actions'].append(env0_selected_action)
                 if self.config['save_frames']:
                     self.data['completed_episode_frames'].append(env0_frames)

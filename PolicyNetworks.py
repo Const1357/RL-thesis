@@ -212,7 +212,7 @@ class CMU_MLP(PolicyNetwork):
 
         dist = Categorical(logits=utilities)
 
-        return dist, (xs, cs)                          # [B, N] each
+        return dist, (xs, cs, dist.probs)           # [B, N] each
 
 
 

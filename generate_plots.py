@@ -355,11 +355,13 @@ for env in environments:
             sampled_episode_steps = []
             all_intents = []
             all_confidences = []
+            all_probs = []
             all_selected_actions = []
 
             for idx in milestone_idx:
                 intents_trajectory = data[0]['intent_evolution']
                 confidences_trajectory = data[0]['confidence_evolution']
+                probs_trajectory = data[0]['action_probabilities']
                 selected_actions_trajectory = data[0]['selected_actions']
 
                 episode_length = len(intents_trajectory[idx])
@@ -369,10 +371,12 @@ for env in environments:
 
                 intents = np.array(intents_trajectory[idx][sampled_episode_step])
                 confidences = np.array(confidences_trajectory[idx][sampled_episode_step])
+                probs = np.array(probs_trajectory[idx][sampled_episode_step])
                 selected_action = selected_actions_trajectory[idx][sampled_episode_step]
 
                 all_intents.append(intents)
                 all_confidences.append(confidences)
+                all_probs.append(probs)
                 all_selected_actions.append(selected_action)
 
             # Global log normalization bounds
@@ -390,6 +394,7 @@ for env in environments:
                 
                 intents = all_intents[i]
                 confidences = all_confidences[i]
+                probs = all_probs[i]
                 selected_action = all_selected_actions[i]
 
                 norm_intents = (np.log(intents + 1e-9) - min_intent) / (max_intent - min_intent + 1e-7)
@@ -413,6 +418,17 @@ for env in environments:
                         linewidths=0.5
                     )
 
+                    # TODO: FIXME if not working, I dont have data to test yet
+                    ax.scatter(
+                        probs[j], action_indices[j],
+                        s=15,
+                        c=colors[3],
+                        alpha=0.9,
+                        marker='X',
+                        edgecolors='black',
+                        linewidths=0.3
+                    )
+
                 # Plot selected action with a distinct marker
                 if 0 <= selected_action < len(intents):
                     ax.scatter(
@@ -421,6 +437,17 @@ for env in environments:
                         c=[color_values[selected_action]],
                         alpha=1.0,
                         marker='D',  # distinct marker
+                        edgecolors='black',
+                        linewidths=0.6
+                    )
+
+                    # TODO: FIXME if not working, I dont have data to test yet.
+                    ax.scatter(
+                        probs[selected_action], action_indices[selected_action],
+                        s=50,
+                        c=colors[3],
+                        alpha=1.0,
+                        marker='P',  # distinct marker
                         edgecolors='black',
                         linewidths=0.6
                     )
@@ -449,7 +476,11 @@ for env in environments:
                 Line2D([0], [0], marker='D', color='w', label='Selected Action',
                     markerfacecolor='gray', markersize=6, markeredgecolor='black'),
                 Line2D([0], [0], marker='o', color='w', label='Other Actions',
-                    markerfacecolor='gray', markersize=6, markeredgecolor='black')
+                    markerfacecolor='gray', markersize=6, markeredgecolor='black'),
+                Line2D([0], [0], marker='x', color=colors[3], label='Action Probabilities',         # TODO: FIXME if not working, no test yet
+                    markerfacecolor=colors[3], markersize=3, markeredgecolor='black'),
+                Line2D([0], [0], marker='+', color=colors[3], label='Selected Action Probability',  # TODO: FIXME if not working, no test yet
+                    markerfacecolor=colors[3], markersize=3, markeredgecolor='black')
             ]
 
             # Add legend to the topmost axis
