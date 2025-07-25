@@ -46,6 +46,7 @@ class Trainer():
         self.data = {
             'env_name' : env_name,
             'experiment_name' : experiment_name,
+            'seed' : experiment_tag,
             'update_steps' : config['rollout_length'],
             'log_steps' : config['rollout_length'] * config['log_frequency'],
             'total_steps' : config['rollout_length'] * config['num_episodes'],

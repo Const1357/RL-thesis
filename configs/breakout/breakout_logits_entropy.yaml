@@ -1,7 +1,0 @@
-# breakout_logits_.yaml
-experiment_name: breakout_logits_entropy_cnn
-
-network_type: cnn
-policy_type: logits
-
-entropy_coef: 0.005

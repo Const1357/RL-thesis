@@ -58,14 +58,22 @@ def main():
     ENV_NAME = config['env']                            # environment name exactly as is required for instantiation using gym.make
 
     EXPERIMENT_NAME = config['experiment_name']         # experiment name is descriptive to the experiment: usually {environment}_{policy_type}_{network_type}
-    TAG = "_" + datetime.now().strftime("%d%m_%H%M")    # datetime tag to differentiate each experiment
 
-    print(f"EXPERIMENT NAME = {EXPERIMENT_NAME}")
 
-    seed_offset = random.randint(0, 10000)              # ensure subsequent runs are different
-    log_seed_offset = random.randint(10000, 20000)      # ensure subsequent runs are different
-    seeds = [seed_offset + 127*i for i in range(config['num_envs'])]
-    log_seeds = [log_seed_offset + 127*i for i in range(config['num_envs'])]
+    seed = config['seed']
+    log_seed = seed + 10000
+    TAG = "_" + str(seed)                               # seed is the tag that differentiates each experiment
+    print(f"EXPERIMENT NAME = {EXPERIMENT_NAME+TAG}")
+
+    # seeding libraries
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    
+
+    seeds = [seed + 127*i for i in range(config['num_envs'])]
+    log_seeds = [log_seed + 127*i for i in range(config['num_envs'])]
 
     # Rollout Vector Environments
     env_fns = [make_env(ENV_NAME, config) for _ in range(config['num_envs'])]       # num_envs:      E

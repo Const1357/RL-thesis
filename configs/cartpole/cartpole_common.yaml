@@ -1,4 +1,5 @@
 # cartpole_common.yaml
+seed: 0
 
 env: CartPole-v1
 render: False
