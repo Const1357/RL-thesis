@@ -5,15 +5,15 @@ env: ALE/Pong-v5
 render: False
 num_envs: 8
 
+quantize: False
+
 atari:
   stack_size: 4
 
-quantize: False
-
-log_frequency: 30
+log_frequency: 10
 
 # network_type: cnn
-# policy_type: logits
+# policy_type: CMU
 value_net_size: ALE
 policy_net_size: ALE
 clip_grad: 0
@@ -25,13 +25,13 @@ policy_lr: 0.00025
 gamma: 0.99
 gae_lambda: 0.95
 max_KL: 0           # KL divergence stopping condition turned off
-entropy_coef: 0.00
+entropy_coef: 0.01
 
 batch_size: 256           # 32 * num_envs
 max_epochs: 3
-num_episodes: 1950        # 1950*1024 = 1996800 = ~2M steps
+num_episodes: 1000        # 1000*1024 = 1024000 = ~1M steps
 max_episode_length: 10000 # = do not truncate (episode usually finishes in under 10k steps)
-rollout_length: 1024      # 16 * 128 (num_envs=16 * Horizon=128)
+rollout_length: 1024      # 8 * 128 (num_envs=16 * Horizon=128)
 
 # https://arxiv.org/pdf/1707.06347 Appendix A table 5
 

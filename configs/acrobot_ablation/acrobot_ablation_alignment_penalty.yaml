@@ -1,0 +1,14 @@
+# acrobot_ablation_alignment_penalty.yaml
+experiment_name: acrobot_ablation_alignment_penalty_mlp
+
+confidence_hidden_multiplier: 2
+
+aux_loss_kwargs:
+  a: 1
+  b: 1
+  M: 1
+  aux_strength: 0.02
+  aux_coeffs:
+    alignment: 1
+    penalty: 1
+    margin: 0

@@ -51,7 +51,7 @@ def create_policy_network(input_size: int, output_size: int, config: dict[str, A
 
     Returns:
         PolicyNetwork: Any derivation of Policy Network depending on the Policy Type (in configuration file)\\
-        Currently either PolicyTypeMLP or PolicyTypeCNN, for PolicyType: Logits, GNN, GNN_K, GNN_N
+        Currently either PolicyTypeMLP or PolicyTypeCNN, for PolicyType: Logits, GNN, GNN_K, CMU
     """
 
     if config['network_type'] == 'mlp':
@@ -136,5 +136,5 @@ def create_policy_network(input_size: int, output_size: int, config: dict[str, A
         # elif config['policy_type'] == 'GNN_K':
         #     return GNN_K_CNN()
 
-        elif config['policy_type'] == 'CMUNet':
-            return GNN_N_CNN(output_size, 4, 84, 84, conv_layers, fc_layers, noise_coeff=config['noise_coeff'])
+        elif config['policy_type'] == 'CMU':
+            return CMU_CNN(output_size, 4, 84, 84, conv_layers, fc_layers, confidence_hidden_multiplier=config['confidence_hidden_multiplier'])

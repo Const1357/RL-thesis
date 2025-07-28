@@ -204,11 +204,17 @@ class CMU_MLP(PolicyNetwork):
 
         cat_input = torch.cat((premature_bs, xs.detach()), dim=-1)
 
-        bs = self.confidence_head(cat_input)
+        bs = self.confidence_head(cat_input).clamp(-20.0, 20.0)
         cs = confidences(bs)
 
         log_cs = torch.log(cs + tol)
-        utilities = (xs + log_cs - log_cs.mean()).clamp(-20.0, 20.0)
+        utilities = (xs + log_cs - log_cs.mean(dim=-1, keepdim=True)).clamp(-20.0, 20.0)
+        # diagnostics
+        # print('[XS]', xs)
+        # print('[BS]', bs)
+        # print('[CS]', cs)
+        # print('[Log CS]', log_cs)
+        # print('[utilities]', utilities)
 
         dist = Categorical(logits=utilities)
 
@@ -278,13 +284,13 @@ class LogitsCNN(PolicyNetwork):
 # class GNN_K_CNN(PolicyNetwork):
 #     pass
 
-# GNN-N CNN
-class GNN_N_CNN(PolicyNetwork):
-    def __init__(self, output_size: int, input_channels: int, input_height: int, input_width: int, conv_layers: list, fc_layers: list, noise_coeff=0.05):
-        super(GNN_N_CNN, self).__init__()
+# CMU CNN
+class CMU_CNN(PolicyNetwork):
+    def __init__(self, output_size: int, input_channels: int, input_height: int, input_width: int, conv_layers: list, fc_layers: list, confidence_hidden_multiplier=0.05):
+        super(CMU_CNN, self).__init__()
 
         self.N = output_size
-        self.noise_coeff = noise_coeff
+        self.conf_mul = confidence_hidden_multiplier
 
         in_channels = input_channels
 
@@ -312,8 +318,13 @@ class GNN_N_CNN(PolicyNetwork):
 
         self.fc = nn.Sequential(*_fc_layers)
 
-        self.head = nn.Linear(in_features, 2*output_size)       # output_size = 2*N (action space size)
+        self.head = nn.Linear(in_features, 2*self.N)       # output_size = 2*N (action space size)
 
+        self.confidence_head = nn.Sequential(
+            nn.Linear(2*self.N, self.conf_mul*self.N),
+            nn.LeakyReLU(),
+            nn.Linear(self.conf_mul*self.N, self.N)
+        )
         # Initialization
         nn.init.constant_(self.head.bias, 0.0)
         nn.init.orthogonal_(self.head.weight, gain=1.412)       # gain = sqrt(2) used for ReLU activations
@@ -326,21 +337,20 @@ class GNN_N_CNN(PolicyNetwork):
         x = self.conv(observation)
         x = x.view(x.size(0), -1)   # flattening
         x = self.fc(x)                                                
-        out = self.head(x)                                      # [B, 2*N] -> 2*N= (0.μ, 1.σ)*N
+        out = self.head(x)                          # [B, 2*N] -> 2*N= (0.μ, 1.σ)*N
 
-        means = out[:,:self.N]                                  # [B, N]
-        stds = out[:,self.N:2*self.N]                           # [B, N]
 
-        stds = fn.softplus(stds) + tol                          # [B, N]  softplus for numerical stability
-        stds = stds.clamp_min(tol)
+        xs = out[:,:self.N]                         # [B, N]
+        premature_bs = out[:,self.N:2*self.N]       # [B, N]
 
-        normal = torch.distributions.Normal(means, stds)
-        # sample a z-score from each gaussian for each action (N) using the reparametrization trick
-        samples = normal.rsample()
-        samples = means + self.noise_coeff*(samples-means)      # [B, N]
+        cat_input = torch.cat((premature_bs, xs.detach()), dim=-1)
 
-        logits = samples.clamp(-20.0, 20.0)
+        bs = self.confidence_head(cat_input).clamp(-20.0, 20.0)
+        cs = confidences(bs)
 
-        dist = Categorical(logits=logits)
+        log_cs = torch.log(cs + tol)
+        utilities = (xs + log_cs - log_cs.mean(dim=-1, keepdim=True)).clamp(-20.0, 20.0)
 
-        return dist, (means, stds)                              # [B, N]
+        dist = Categorical(logits=utilities)
+
+        return dist, (xs, cs, dist.probs)           # [B, N] each

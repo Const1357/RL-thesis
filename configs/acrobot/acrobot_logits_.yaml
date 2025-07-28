@@ -1,0 +1,5 @@
+# acrobot_logits_.yaml
+experiment_name: acrobot_logits_mlp
+
+network_type: mlp
+policy_type: logits

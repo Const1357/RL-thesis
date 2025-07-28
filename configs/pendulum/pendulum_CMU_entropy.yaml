@@ -12,7 +12,7 @@ aux_loss_kwargs:
   a: 1
   b: 1
   M: 1
-  aux_strength: 0
+  aux_strength: 0.02
   aux_coeffs:
     alignment: 0
     penalty: 0

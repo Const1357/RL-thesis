@@ -4,7 +4,7 @@ experiment_name: cartpole_CMU_entropy_mlp
 network_type: mlp
 policy_type: CMU
 
-noise_coeff: 1
+confidence_hidden_multiplier: 2
 
 entropy_coef: 0.005
 
@@ -12,5 +12,8 @@ aux_loss_kwargs:
   a: 1
   b: 1
   M: 1
-  aux_coeff: 0.01
-  aux_mix: 0.9
+  aux_strength: 0.02
+  aux_coeffs:
+    alignment: 0
+    penalty: 0
+    margin: 0

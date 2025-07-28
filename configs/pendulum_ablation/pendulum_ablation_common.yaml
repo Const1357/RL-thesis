@@ -1,4 +1,5 @@
 # pendulum_common.yaml
+seed: 0
 
 env: Pendulum-v1
 render: False

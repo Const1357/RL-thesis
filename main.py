@@ -117,8 +117,10 @@ def main():
     data = trainer.train()  # Trains the Agent in the Environment using PPO routine with specified configuration 
 
     # store data collected during training for further visualization and analysis
-    # pkl_file = f'runs_final/{ENV_NAME}/pickle/{EXPERIMENT_NAME}/{EXPERIMENT_NAME+TAG}.pkl'
-    pkl_file = f'runs_ablation/pickle/{EXPERIMENT_NAME}/{EXPERIMENT_NAME+TAG}.pkl'
+    
+    # pkl_file = f'runs_seeded/{ENV_NAME}/pickle/{EXPERIMENT_NAME}/{EXPERIMENT_NAME+TAG}.pkl'
+
+    pkl_file = f'runs_ablation_pong/pickle/{EXPERIMENT_NAME}/{EXPERIMENT_NAME+TAG}.pkl'
     os.makedirs(os.path.dirname(pkl_file), exist_ok=True)
     with open(pkl_file, 'wb') as f:
         pickle.dump(data, f)

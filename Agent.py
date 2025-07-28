@@ -148,7 +148,7 @@ class Agent():
                 # MSE Loss
                 unclipped_loss = 0.5 * (batch_values - batch_returns).pow(2)
                 clipped_loss   = 0.5 * (batch_clipped_values - batch_returns).pow(2)
-
+                # print('[value_loss]', torch.max(unclipped_loss, clipped_loss))
                 loss = torch.max(unclipped_loss, clipped_loss).mean()
 
                 # optimizer step
@@ -253,12 +253,12 @@ class Agent():
                 surrogate = torch.min(ratio*batch_advantages, clipped_ratio*batch_advantages)           # [B]
                 policy_loss = - surrogate - self.hyperparameters['entropy_coef']*entropy                # [B] mean reduction later
 
-                # Auxiliarry Loss: (Only for CMU)
+                # Auxiliary Loss: (Only for CMU)
                 if self.aux_loss:
                     
                     # extract args
                     aux_strength = self.aux_loss_kwargs.get('aux_strength', 0.02)
-                    if aux_strength:
+                    if aux_strength != 0:
                         
                         a = self.aux_loss_kwargs.get('a', 0.1)
                         b = self.aux_loss_kwargs.get('b', 0.1)
@@ -281,20 +281,32 @@ class Agent():
 
                         Is = intents(xs)                                                # [B, N]
 
-                        L_alignment = aligmnent_loss(cs, xs).clamp(min=0.0, max=2.0)    # [B] in [0, 2]
-                        L_penalty = loss_penalty(Is, cs, a, b, M).clamp(min=0.0, max=M) # [B] in [0, M=1] (differentiable bounding transformation)
-                        L_margin = margin_loss(Is).clamp(min=-2.0, max=0.0)             # [B] in [-2, 0]
+                        if aux_coeffs['alignment'] != 0:
+                            L_alignment = aligmnent_loss(cs, xs).clamp(min=0.0, max=2.0)    # [B] in [0, 2]
+                        else:
+                            L_alignment = 0
 
+                        if aux_coeffs['penalty'] != 0:
+                            L_penalty = loss_penalty(Is, cs, a, b, M).clamp(min=0.0, max=M) # [B] in [0, M=1] (differentiable bounding transformation)
+                        else:
+                            L_penalty = 0
+
+                        if aux_coeffs['margin'] != 0:
+                            L_margin = margin_loss(Is).clamp(min=-2.0, max=0.0)             # [B] in [-2, 0]
+                        else:
+                            L_margin = 0
+                            
                         with torch.no_grad():
                             total_ppo_loss       += policy_loss.mean().item()
-                            total_alignment_loss += L_alignment.mean().item() if aux_coeffs['alignment'] else 0
-                            total_penalty_loss   += L_penalty.mean().item()   if aux_coeffs['penalty']   else 0
-                            total_margin_loss    += L_margin.mean().item()    if aux_coeffs['margin']    else 0
+                            total_alignment_loss += L_alignment.mean().item() if aux_coeffs['alignment'] != 0 else L_alignment
+                            total_penalty_loss   += L_penalty.mean().item()   if aux_coeffs['penalty'] != 0   else L_penalty
+                            total_margin_loss    += L_margin.mean().item()    if aux_coeffs['margin'] != 0    else L_margin
                         
                         # Mixing into Existing Loss
                         mixed_aux_loss = coeffs['alignment'] * L_alignment + coeffs['penalty']*L_penalty + coeffs['margin']*L_margin
 
                         policy_loss = policy_loss + aux_strength*mixed_aux_loss
+                        # print('[policy loss]', policy_loss)
 
                     else:
                         with torch.no_grad():

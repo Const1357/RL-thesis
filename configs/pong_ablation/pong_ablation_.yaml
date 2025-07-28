@@ -1,0 +1,17 @@
+# pong_ablation_.yaml
+experiment_name: pong_ablation_cnn
+
+network_type: cnn
+policy_type: CMU
+
+confidence_hidden_multiplier: 2
+
+aux_loss_kwargs:
+  a: 1
+  b: 1
+  M: 1
+  aux_strength: 0.02
+  aux_coeffs:
+    alignment: 0
+    penalty: 0
+    margin: 0
