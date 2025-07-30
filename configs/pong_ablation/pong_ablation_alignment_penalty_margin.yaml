@@ -1,0 +1,14 @@
+# pong_ablation_alignment_penalty_margin.yaml
+experiment_name: pong_ablation_alignment_penalty_margin_mlp
+
+confidence_hidden_multiplier: 2
+
+aux_loss_kwargs:
+  a: 1
+  b: 1
+  M: 1
+  aux_strength: 0.02
+  aux_coeffs:
+    alignment: 4
+    penalty: 4
+    margin: 1

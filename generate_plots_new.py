@@ -41,6 +41,11 @@ colors_dict = {
     'GNN' : colors[1],
     'GNN_K' : colors[2],
     'CMU' : colors[3],
+
+    'no_mod' : colors[0],
+    'entropy' : colors[1],
+    'noise' : colors[2],
+    'noise_entropy' : colors[3],
 }
 
 # per environment constants:
@@ -119,7 +124,7 @@ ablation_mods = [
 ]
 
 # as seen in directories
-environments = ['CartPole-v1', 'Pendulum-v1', 'ALE/Pong-v5']
+environments = ['CartPole-v1', 'Pendulum-v1']#, 'ALE/Pong-v5']
 
 
 def load_runs(dirname):
@@ -191,7 +196,7 @@ def get_ablation_mod(filename):
     match = re.search(r'^(?:[^_]*_){2}(.*?)(?=_(?:mlp|cnn))', filename)
     return match.group(1) if match else 'no_mod'
 
-def ablation_mod_short(mod: str):
+def mod_short(mod: str):
     if mod == 'no_mod':
         return 'No Mod'
     mod = mod.split('_')
@@ -677,38 +682,69 @@ def plot_CMU_IC_evolution(dirname, load_from, ablation_plot=False):
 def plot_reward_comparison(data):
 
     env = data['env']
+    print(env)
     C = CONSTANTS[env]
     x = data['x']
     total_steps = data['total_steps']
 
-    for mod in mods:
-
+    for ptype in ['GNN', 'GNN_K']:
         fig = plt.figure(figsize=(9,6))
-        to_plot = data[mod]
 
-        for ptype in policy_types:
+        for mod in mods:
+            curve = data[ptype][mod]['reward_curve']
+            baseline_curve = data['logits'][mod]['reward_curve']
 
-            curve = to_plot[ptype]['reward_curve'] if ptype in to_plot.keys() and 'reward_curve' in to_plot[ptype].keys() else None
-            if curve is not None:
-                std_low, std_high = to_plot[ptype]['std_curve'] 
-                plt.plot(x, curve, color=colors_dict[ptype], label=clean_policy_type(ptype))
-                plt.fill_between(x, std_low, std_high, color = colors_dict[ptype], alpha = 0.2, edgecolor = 'none')
+            std_low, std_high = data[ptype][mod]['std_curve']
+            baseline_std_low, baseline_std_high = data['logits'][mod]['std_curve']
+
+            plt.plot(x, smooth(curve, s=1), color=colors_dict[mod], label=f"{clean_policy_type(ptype)} ({clean_mod(mod)})")
+            # plt.fill_between(x, std_low, std_high, color = colors_dict[mod], alpha = 0.2, edgecolor = 'none')
+
+            plt.plot(x, smooth(baseline_curve, s=1), color = colors_dict[mod], label=f"Baseline ({clean_mod(mod)})", linestyle='--')
+            # plt.fill_between(x, baseline_std_low, baseline_std_high, color = colors_dict[mod], alpha = 0.2, edgecolor = 'none')
 
         plt.ylim(top=C['max_reward'] + C['top_offset'], bottom=C['min_reward'])
         plt.xlim(left=C['left_offset'], right=total_steps+C['right_offset'])
         plt.xticks(range(0, total_steps+1, C['xtick_interval']))
         plt.yticks(range(C['min_reward'],C['max_reward']+1, C['ytick_interval']))
 
-        plt.suptitle(f'Rewards: {env_title[env]} ({clean_mod(mod)})', fontweight='bold')
+        plt.suptitle(f'Rewards: {env_title[env]} ({clean_policy_type(ptype)})', fontweight='bold')
         plt.xlabel('Steps')
         plt.ylabel('Reward')
-        plt.legend(title=None, loc='upper center', bbox_to_anchor=(0.5, 1.08),
+        plt.legend(title=None, loc='upper center', bbox_to_anchor=(0.5, 1.10),
             ncol=4, frameon=False, fontsize='small')
         plt.tight_layout()
 
+
         savedir = f"{DIR}/{env}/plots/reward_curves"
-        name = f"all_rewards_{mod}"
+        name = f"all_rewards_{ptype}"
         save_and_close(fig, savedir, name)
+
+    # for mod in mods:
+
+    #     fig = plt.figure(figsize=(9,6))
+    #     to_plot = data[mod]
+
+    #     for ptype in policy_types:
+
+    #         curve = to_plot[ptype]['reward_curve'] if ptype in to_plot.keys() and 'reward_curve' in to_plot[ptype].keys() else None
+    #         if curve is not None:
+    #             std_low, std_high = to_plot[ptype]['std_curve'] 
+    #             plt.plot(x, curve, color=colors_dict[ptype], label=clean_policy_type(ptype))
+    #             plt.fill_between(x, std_low, std_high, color = colors_dict[ptype], alpha = 0.2, edgecolor = 'none')
+
+    #     plt.ylim(top=C['max_reward'] + C['top_offset'], bottom=C['min_reward'])
+    #     plt.xlim(left=C['left_offset'], right=total_steps+C['right_offset'])
+    #     plt.xticks(range(0, total_steps+1, C['xtick_interval']))
+    #     plt.yticks(range(C['min_reward'],C['max_reward']+1, C['ytick_interval']))
+
+    #     plt.suptitle(f'Rewards: {env_title[env]} ({clean_mod(mod)})', fontweight='bold')
+    #     plt.xlabel('Steps')
+    #     plt.ylabel('Reward')
+    #     plt.legend(title=None, loc='upper center', bbox_to_anchor=(0.5, 1.08),
+    #         ncol=4, frameon=False, fontsize='small')
+    #     plt.tight_layout()
+
 
 
 def plot_aux_reward_comparison(data):
@@ -764,7 +800,14 @@ def plot_aux_reward_comparison(data):
 
 
 def main_plots():
+
+    metrics = {}
+
     for environment in environments:
+
+        print(environment)
+        
+        metrics[flatten_env(environment)] = {}
 
         # Normal Plots:
         load_from = f"{DIR}/{environment}/pickle/"
@@ -773,46 +816,50 @@ def main_plots():
         data = {
             'env' : environment,
             'x' : None,
-            'no_mod' : {
-                'logits' : {},
-                'GNN' : {},
-                'GNN_K' : {},
-                'CMU' : {},
+            'logits' : {
+                'no_mod' : {},
+                'entropy' : {},
+                'noise' : {},
+                'noise_entropy' : {},
             },
-            'entropy' : {
-                'logits' : {},
-                'GNN' : {},
-                'GNN_K' : {},
-                'CMU' : {},
+            'GNN' : {
+                'no_mod' : {},
+                'entropy' : {},
+                'noise' : {},
+                'noise_entropy' : {},
             },
-            'noise' : {
-                'logits' : {},
-                'GNN' : {},
-                'GNN_K' : {},
-                'CMU' : {},
-            },
-            'noise_entropy' : {
-                'logits' : {},
-                'GNN' : {},
-                'GNN_K' : {},
-                'CMU' : {},
+            'GNN_K' : {
+                'no_mod' : {},
+                'entropy' : {},
+                'noise' : {},
+                'noise_entropy' : {},
             },
         }
 
+        metrics[flatten_env(environment)]['logits'] = {}
+        metrics[flatten_env(environment)]['GNN'] = {}
+        metrics[flatten_env(environment)]['GNN_K'] = {}
+
         for dirname in dirnames:
 
-            env, ptype, mod, x, total_steps, mean_reward_curve, std_fill_y1, std_fill_y2, _ = plot_individual_reward_curves(dirname, load_from)
+            env, ptype, mod, x, total_steps, mean_reward_curve, std_fill_y1, std_fill_y2, stacked_reward_curves = plot_individual_reward_curves(dirname, load_from)
             
             data['x'] = x
             data['total_steps'] = total_steps
-            data[mod][ptype]['reward_curve'] = mean_reward_curve
-            data[mod][ptype]['std_curve'] = (std_fill_y1, std_fill_y2)
+            data[ptype][mod]['reward_curve'] = mean_reward_curve
+            data[ptype][mod]['std_curve'] = (std_fill_y1, std_fill_y2)
 
-            if ptype == 'CMU':
-                plot_CMU_IC_evolution(dirname, load_from)
-                plot_CMU_policy_loss_curves(dirname, load_from)
+
+            if flatten_env(env) == 'cartpole':
+                threshold = 475.0
+            elif flatten_env(env) == 'pendulum':
+                threshold = -200.0
+
+            metrics[flatten_env(env)][ptype][mod] = compute_metrics(stacked_reward_curves, threshold=threshold)
             
         plot_reward_comparison(data)
+
+    return metrics
 
 
 def ablation_plots(env):
@@ -934,9 +981,9 @@ def add_score_column(df, columns, steps=0):
     df["Score"] = sum(normalized).round(2)  # optionally: / len(columns) for avg
     return df
 
-def quantitative_analysis(metrics, env):
+def quantitative_analysis_CMU(metrics, env):
 
-    formatted_metrics = {'CMU-Net (' + ablation_mod_short(get_ablation_mod(dirname)) + ')': results for dirname,results in metrics.items()}
+    formatted_metrics = {'CMU-Net (' + mod_short(get_ablation_mod(dirname)) + ')': results for dirname,results in metrics.items()}
 
     baseline_dirname = f"{DIR}/{get_env(env)}/pickle/{env}_logits_{'cnn' if env == 'pong' else 'mlp'}"
     baseline_data = load_runs(baseline_dirname)
@@ -992,16 +1039,111 @@ def quantitative_analysis(metrics, env):
     print(df)
 
 
+def quantitative_analysis_main(metrics):
+
+
+
+
+    for env in ['cartpole', 'pendulum']:
+
+        dfs = []
+
+        for ptype in ['GNN', 'GNN_K']:
+
+            formatted_metrics = {f"{clean_policy_type(ptype)} (" + mod_short(mod) + ')': results for mod,results in metrics[env][ptype].items()}
+
+            # baseline_dirname = f"{DIR}/{get_env(env)}/pickle/{env}_logits_{'cnn' if env == 'pong' else 'mlp'}"
+            # baseline_data = load_runs(baseline_dirname)
+            # baseline_reward_curves = [[s[1] for s in d['reward_curve'] ] for d in baseline_data]
+            # baseline_stacked_reward_curves = np.stack(baseline_reward_curves)
+
+            # steps = len(baseline_stacked_reward_curves[0])
+            if env == 'cartpole':
+                steps = 50
+            elif env == 'pendulum':
+                steps = 100
+
+            # baseline_metrics = compute_metrics(baseline_stacked_reward_curves, threshold=threshold)
+
+            baseline_metrics = metrics[env]['logits']
+
+            for mod in mods:
+                formatted_metrics[f"Baseline ({mod_short(mod)})"] = baseline_metrics[mod]
+            
+            for mod in mods:
+                
+                short_mod = f"({mod_short(mod)})"
+
+                mod_metrics = {k : v for k,v in formatted_metrics.items() if short_mod in k}
+
+                df = pd.DataFrame.from_dict(data=mod_metrics, orient='index')
+                df.index.name = 'Method'
+                df.reset_index(inplace=True)
+
+                column_directions = {
+                    'Convergence': 'min',
+                    'STD (5 runs)': 'min',
+                    'Instability': 'min',
+                    'AUC': 'max',
+                }
+
+                df = add_score_column(df, column_directions, steps)
+
+                column_directions['Score'] = 'max'
+
+                [bold_best(df, k, v, steps) for k,v in column_directions.items()]
+
+                dfs.append(df)
+
+        df = pd.concat(dfs)
+
+        # Generate LaTeX
+        latex_code = df.to_latex(index=False, escape=False)  # escape=False to allow LaTeX in cells
+
+        lines = latex_code.splitlines()
+
+        start_idx = next(i for i, line in enumerate(lines) if r'\toprule' in line) +2
+        end_idx = next(i for i, line in enumerate(lines) if r'\bottomrule' in line)
+
+        # Insert \midrule every 2 rows (starting from data start)
+        data_lines = lines[start_idx:end_idx]
+        new_data_lines = []
+        for i, line in enumerate(data_lines):
+            new_data_lines.append(line)
+            if (i + 1) % 2 == 1 and (i + 1) != len(data_lines) and (i + 1) != 1:
+                new_data_lines.append(r'\midrule')
+
+        # Reconstruct final LaTeX
+        final_lines = lines[:start_idx] + new_data_lines + lines[end_idx:]
+        final_latex = "\n".join(final_lines)
+
+        print(env)
+        print(final_latex)
+        print(df)
+
+
+    # print(df)
+    # print(final_latex)
+
+
+
+
+
+
 def main():
     
-    # main_plots()
+    main_metrics = main_plots()
+    
+    # quantitative_analysis_main(main_metrics)
+
+    
     pendulum_metrics = ablation_plots('pendulum')
     acrobot_metrics = ablation_plots('acrobot')
     pong_metrics = ablation_plots('pong')
 
-    quantitative_analysis(pendulum_metrics, 'pendulum')
-    quantitative_analysis(acrobot_metrics, 'acrobot')
-    quantitative_analysis(pong_metrics, 'pong')
+    quantitative_analysis_CMU(pendulum_metrics, 'pendulum')
+    quantitative_analysis_CMU(acrobot_metrics, 'acrobot')
+    quantitative_analysis_CMU(pong_metrics, 'pong')
 
 
 
