@@ -15,8 +15,26 @@ import random
 
 import pandas as pd
 
+from matplotlib.ticker import ScalarFormatter
+
+_original_plot = plt.plot  # backup the original
+
+def patched_plot(*args, **kwargs):
+    lines = _original_plot(*args, **kwargs)  # call original plot
+    ax = plt.gca()  # get current axis
+
+    # Disable scientific notation
+    ax.xaxis.set_major_formatter(ScalarFormatter(useMathText=False))
+    ax.ticklabel_format(style='plain', axis='x')
+
+    return lines
+plt.plot = patched_plot
+
+
+
 
 sns.set_style('darkgrid')
+
 
 DIR = 'runs_seeded'
 DIR_ABLATION = 'runs_ablation'
@@ -54,50 +72,57 @@ CONSTANTS = {
         'num_episodes' : 150,
         'max_reward' : 500,
         'min_reward' : 0,
-        'xtick_interval': 100000,   # tick every 100k steps
-        'ytick_interval': 50,
-        'top_offset' : 20,
-        'bot_offset' : 1,
-        'left_offset' : -3,
-        'right_offset' : 3,
+        'xtick_interval': 200000,   # tick every 200k steps
+        'ytick_interval': 100,
+        'top_offset' : 15,
+        'bot_offset' : -15,
+        'left_offset' : -12000,
+        'right_offset' : 2000,
     },
 
     'Pendulum-v1': {
         'num_episodes' : 500,
         'max_reward' : 0,
-        'min_reward' : -1600,
-        'xtick_interval': 250000,   # tick every 250k steps
-        'ytick_interval': 200,
-        'top_offset' : 0,
-        'bot_offset' : 0,
-        'left_offset' : -3,
-        'right_offset' : 3,
+        'min_reward' : -1500,
+        'xtick_interval': 500000,   # tick every 500k steps
+        'ytick_interval': 300,
+        'top_offset' : 40,
+        'bot_offset' : -40,
+        'left_offset' : -40000,
+        'right_offset' : 10000,
     },
 
     'Acrobot-v1': {
         'num_episodes' : 300,
         'max_reward' : 0,
         'min_reward' : -500,
-        'xtick_interval': 100000,   # tick every 100k steps
+        'xtick_interval': 200000,   # tick every 200k steps
         'ytick_interval': 100,
-        'top_offset' : 0,
-        'bot_offset' : -2,
-        'left_offset' : -3,
-        'right_offset' : 3,
+        'top_offset' : 15,
+        'bot_offset' : -15,
+        'left_offset' : -12000,
+        'right_offset' : 2000,
     },
 
     'ALE/Pong-v5': {
-        'num_episodes' : 800,
+        'num_episodes' : 1000,
         'max_reward' : 21,
         'min_reward' : -21,
         'xtick_interval': 250000,   # tick every 250k steps
         'ytick_interval': 3,
-        'top_offset' : 0.5,
-        'bot_offset' : 0.2,
-        'left_offset' : -3,
-        'right_offset' : 3,
+        'top_offset' : 1.26,
+        'bot_offset' : -1.26,
+        'left_offset' : -20000,
+        'right_offset' : 10000,
     }
 }
+
+
+def round_to_leading_digit(x):
+    if x == 0:
+        return 0
+    magnitude = int(np.floor(np.log10(abs(x))))
+    return round(x, -magnitude)
 
 def save_and_close(fig, savedir, name):
     savedir_svg = f"{savedir}/svg/"
@@ -124,7 +149,7 @@ ablation_mods = [
 ]
 
 # as seen in directories
-environments = ['CartPole-v1', 'Pendulum-v1']#, 'ALE/Pong-v5']
+environments = ['CartPole-v1', 'Pendulum-v1', 'ALE/Pong-v5']
 
 
 def load_runs(dirname):
@@ -270,19 +295,19 @@ def plot_individual_reward_curves(dirname, load_from, ablation_plot=False):
 
     fig = plt.figure(figsize=(9,6))
 
-    plt.plot(x, mean_reward_curve, color='blue', linewidth=1.5, label='Mean Reward')
+    plt.plot(x, mean_reward_curve, color='blue', linewidth=2, label='Mean Reward')
     plt.ylim(top=C['max_reward'] + C['top_offset'], bottom=C['min_reward'] + C['bot_offset'])
     plt.xlim(left=C['left_offset'], right=data[0]['total_steps']+C['right_offset'])
-    plt.xticks(range(0, data[0]['total_steps']+1, C['xtick_interval']))
-    plt.yticks(range(C['min_reward'],C['max_reward']+1, C['ytick_interval']))
+    plt.xticks(range(0, data[0]['total_steps']+1, round_to_leading_digit(data[0]['total_steps'])), fontsize=14)
+    plt.yticks(range(C['min_reward'],C['max_reward']+1, C['ytick_interval']), fontsize=14)
 
     for i,rc in enumerate(reward_curves):
         if i == 0:
-            plt.plot(x, rc, color='green', alpha=0.2, linewidth=1, label=f"Reward (individual runs)")
+            plt.plot(x, rc, color='green', alpha=0.27, linewidth=1.25, label=f"Reward (individual runs)")
         else:
-            plt.plot(x, rc, color='green', alpha=0.2, linewidth=1)
+            plt.plot(x, rc, color='green', alpha=0.27, linewidth=1.25)
 
-    plt.plot(x, norm_stacked_entropy_curves, color = colors[4], linewidth=1, label='Entropy (normalized)')
+    plt.plot(x, norm_stacked_entropy_curves, color = colors[4], linewidth=1.5, label='Entropy (normalized)')
 
 
     std_fill_y1 = mean_reward_curve-std_reward_curve
@@ -290,12 +315,19 @@ def plot_individual_reward_curves(dirname, load_from, ablation_plot=False):
     plt.fill_between(
         x, std_fill_y1, std_fill_y2, color='blue', alpha=0.1, label='Reward Standard Deviation', edgecolor='none')    
             
-    plt.xlabel('Steps')
-    plt.ylabel('Reward')
-    plt.suptitle(f"Rewards: {get_individual_title(dirname, ablation=ablation_plot)}", fontweight='bold')
-    plt.legend(title=None, loc='upper center', bbox_to_anchor=(0.5, 1.08),
-        ncol=4, frameon=False, fontsize='small')
+    plt.xlabel('')
+    plt.ylabel('')
+
+    title = f"{get_individual_title(dirname, ablation=ablation_plot)}"
+    if (env == 'ALE/Pong-v5' or env == 'Acrobot-v1') and 'Logits (Baseline)' in title:
+        title = re.sub(r'\s*\([^()]*\)\s*$', '', title)
+      
+    plt.suptitle(title, fontweight='bold', fontsize=18)
+
+    # fig.legend(title=None, loc='upper center', bbox_to_anchor=(0.5, 0.95),
+    #     ncol=2, frameon=False, fontsize=14)
     plt.tight_layout()
+    # plt.subplots_adjust(top=1.0)
 
     dir_ablation = f"{DIR_ABLATION}_{flatten_env(env)}"
     savedir = f"{dir_ablation if ablation_plot else DIR}{'' if ablation_plot else '/'+env}/plots/reward_curves" 
@@ -318,11 +350,11 @@ def plot_CMU_policy_loss_curves(dirname, load_from, ablation_plot=False):
     C = CONSTANTS[env]
 
 
-    fig = plt.figure(figsize=(9,6))
-    plt.ylim(top=1.1, bottom=0)
+    fig = plt.figure(figsize=(9,7))
+    plt.ylim(top=1.1, bottom=-0.02)
     plt.yticks(ticks=np.arange(0, 40+1, 5)/40, labels=[])
     plt.xlim(left=C['left_offset'], right=data[0]['total_steps']+C['right_offset'])
-    plt.xticks(range(0, data[0]['total_steps']+1, C['xtick_interval']))
+    plt.xticks(range(0, data[0]['total_steps']+1, round_to_leading_digit(data[0]['total_steps'])), fontsize=14)
 
     num_episodes = data[0]['total_steps']//data[0]['update_steps']
     log_frequency = data[0]['log_steps']//data[0]['update_steps']
@@ -336,32 +368,44 @@ def plot_CMU_policy_loss_curves(dirname, load_from, ablation_plot=False):
     penalty_loss_curves = [np.array(d['penalty_loss_curve']) for d in data]
     margin_loss_curves = [np.array(d['margin_loss_curve']) for d in data]
 
-    def normalize(curves):
-        curves = np.stack(curves)  # shape: [R, T]
-        min_vals = curves.min(axis=1, keepdims=True)
-        max_vals = curves.max(axis=1, keepdims=True)
-        return (curves - min_vals) / (max_vals - min_vals + 1e-8)
+
+    def normalize_mean_std(curves):
+
+        curves = np.array(curves)  # shape: (N, T)
+
+        mean_curve = np.nanmean(curves, axis=0)
+        std_curve = np.nanstd(curves, axis=0)
+
+
+        # normalize based on the mean curve's min and max
+        min_val = mean_curve.min()
+        max_val = mean_curve.max()
+        scale = max_val - min_val if max_val > min_val else 1.0
+
+        normalized_mean = (mean_curve - min_val) / scale
+        normalized_std  = std_curve / scale  # scale std consistently
+
+        return normalized_mean, normalized_std
+
+
+    mean_policy_loss_curve, _ =  normalize_mean_std(policy_loss_curves)
+    mean_ppo_loss_curve, _ =  normalize_mean_std(ppo_loss_curves)
+    mean_alignment_loss_curve, std_alignment =  normalize_mean_std(alignment_loss_curves)
+    mean_penalty_loss_curve, std_penalty =  normalize_mean_std(penalty_loss_curves)
+    mean_margin_loss_curve, std_margin =  normalize_mean_std(margin_loss_curves)
+
+    mean_policy_loss_curve = smooth(mean_policy_loss_curve, 0.5)
+    mean_ppo_loss_curve = smooth(mean_ppo_loss_curve, 0.5)
+
+    mean_alignment_loss_curve = smooth(mean_alignment_loss_curve, 2)
+    mean_penalty_loss_curve = smooth(mean_penalty_loss_curve, 2)
+    mean_margin_loss_curve = smooth(mean_margin_loss_curve, 2)
+
+    std_alignment = smooth(std_alignment, 2)
+    std_penalty = smooth(std_penalty, 2)
+    std_margin = smooth(std_margin, 2)
     
 
-    stacked_norm_policy_loss_curve = normalize(policy_loss_curves)
-    stacked_norm_ppo_loss_curve = normalize(ppo_loss_curves)
-    stacked_norm_alignment_loss_curve = normalize(alignment_loss_curves)
-    stacked_norm_penalty_loss_curve = normalize(penalty_loss_curves)
-    stacked_norm_margin_loss_curve = normalize(margin_loss_curves)
-
-
-    mean_policy_loss_curve = smooth(stacked_norm_policy_loss_curve.mean(axis=0), s=1)
-    mean_ppo_loss_curve = smooth(stacked_norm_ppo_loss_curve.mean(axis=0), s=1)
-
-
-    mean_alignment_loss_curve = smooth(stacked_norm_alignment_loss_curve.mean(axis=0))
-    mean_penalty_loss_curve = smooth(stacked_norm_penalty_loss_curve.mean(axis=0))
-    mean_margin_loss_curve = smooth(stacked_norm_margin_loss_curve.mean(axis=0))
-
-
-    std_alignment = smooth(stacked_norm_alignment_loss_curve.std(axis=0))
-    std_penalty = smooth(stacked_norm_penalty_loss_curve.std(axis=0))
-    std_margin = smooth(stacked_norm_margin_loss_curve.std(axis=0))
 
     reward_curves = [[s[1] for s in d['reward_curve'] ] for d in data]
     stacked_reward_curves = np.stack(reward_curves)
@@ -381,60 +425,64 @@ def plot_CMU_policy_loss_curves(dirname, load_from, ablation_plot=False):
 
     plt.axhline(0.5, color='gray', linestyle='--', linewidth=0.8)
 
-    plt.fill_between(_x, mean_alignment_loss_curve-std_alignment, mean_alignment_loss_curve+std_alignment, alpha=0.2, color=colors[5], edgecolor='none')
-    plt.fill_between(_x, mean_penalty_loss_curve-std_penalty, mean_penalty_loss_curve+std_penalty, alpha=0.2, color=colors[2], edgecolor='none')
-    plt.fill_between(_x, mean_margin_loss_curve-std_margin, mean_margin_loss_curve+std_margin, alpha=0.2, color=colors[3], edgecolor='none')
+    plt.fill_between(_x, mean_alignment_loss_curve-std_alignment, mean_alignment_loss_curve+std_alignment, alpha=0.1, color=colors[5], edgecolor='none')
+    plt.fill_between(_x, mean_penalty_loss_curve-std_penalty, mean_penalty_loss_curve+std_penalty, alpha=0.1, color=colors[2], edgecolor='none')
+    plt.fill_between(_x, mean_margin_loss_curve-std_margin, mean_margin_loss_curve+std_margin, alpha=0.1, color=colors[3], edgecolor='none')
 
-    plt.plot(_x, mean_alignment_loss_curve, label='Alignment Loss (smoothed)',color=colors[5])
-    plt.plot(_x, mean_penalty_loss_curve, label='Penalty Loss (smoothed)',color=colors[2])
-    plt.plot(_x, mean_margin_loss_curve, label='Margin Loss (smoothed)',color=colors[3])
-    plt.plot(_x, 0.5 + (mean_ppo_loss_curve - mean_ppo_loss_curve.mean())*5, label='PPO Loss (centered x5)',color=colors[0], alpha=1, linewidth='0.7')
-    plt.plot(_x, 0.5 + (mean_policy_loss_curve - mean_policy_loss_curve.mean())*5, label='Mixed Loss (centered x5)',color=colors[1], alpha=1, linewidth='0.7')
-    plt.plot(x, normalized_mean_reward_curve, color='black', label='reward')
-    plt.plot(x, normalized_entropy_curve, color=colors[4], label='entropy')
+    plt.plot(_x, mean_alignment_loss_curve, label='Alignment Loss (smoothed)',color=colors[5], linewidth=2.0)
+    plt.plot(_x, mean_penalty_loss_curve, label='Penalty Loss (smoothed)',color=colors[2], linewidth=2.0)
+    plt.plot(_x, mean_margin_loss_curve, label='Margin Loss (smoothed)',color=colors[3], linewidth=2.0)
+    plt.plot(_x, mean_ppo_loss_curve, label='PPO Loss',color=colors[0], alpha=1, linewidth=1.0)
+    plt.plot(_x, mean_policy_loss_curve, label='Mixed Loss',color=colors[1], alpha=1, linewidth=1.0)
+    plt.plot(x, normalized_mean_reward_curve, color='black', label='reward', linewidth=1.5)
+    plt.plot(x, normalized_entropy_curve, color=colors[4], label='entropy', linewidth=1.5)
 
+    
 
-    plt.xlabel('Steps')
-    plt.ylabel('Normalized Axis')
-    plt.suptitle(f"Objectives: {get_individual_title(dirname, ablation=ablation_plot)}", fontweight='bold')
+    plt.xlabel('')
+    plt.ylabel('Normalized Axis', fontsize=16)
+
+    plt.suptitle(f"{env_title[env]} | {clean_policy_type(ptype)} ({mod_short(mod)})", fontweight='bold', fontsize=18)
+    # plt.suptitle(f"{get_individual_title(dirname, ablation=ablation_plot)}", fontweight='bold', fontsize=18)
     
     # Create individual handles
-    handles = [
-        Line2D([0], [0], color=colors[5], label='Alignment Loss (smoothed)'),
-        Line2D([0], [0], color=colors[2], label='Penalty Loss (smoothed)'),
-        Line2D([0], [0], color=colors[3], label='Margin Loss (smoothed)'),
-        Line2D([0], [0], color=colors[0], label='PPO Loss (centered x5)', linewidth=0.7),
-        Line2D([0], [0], color=colors[1], label='Mixed Loss (centered x5)', linewidth=0.7),
-        Line2D([0], [0], color='black', label='reward'),
-        Line2D([0], [0], color=colors[4], label='entropy'),
-    ]
+    # handles = [
+    #     Line2D([0], [0], color=colors[0], label='PPO Loss (centered x5)', linewidth=0.7),
+    #     Line2D([0], [0], color=colors[1], label='Mixed Loss (centered x5)', linewidth=0.7),
+    #     Line2D([0], [0], color='black', label='reward'),
+    #     Line2D([0], [0], color=colors[5], label='Alignment Loss (smoothed)'),
+    #     Line2D([0], [0], color=colors[2], label='Penalty Loss (smoothed)'),
+    #     Line2D([0], [0], color=colors[3], label='Margin Loss (smoothed)'),
+    #     Line2D([0], [0], color=colors[4], label='entropy'),
+    # ]
 
     # Now split into 2 rows:
-    row1 = handles[:3]
-    row2 = handles[3:]
+    # row1 = handles[:3]
+    # row2 = handles[3:]
 
-    # Create first row of legend
-    fig.legend(
-        handles=row1,
-        loc='upper center',
-        bbox_to_anchor=(0.505, 0.95),
-        ncol=3,
-        frameon=False,
-        fontsize='small'
-    )
+    # # Create first row of legend
+    # fig.legend(
+    #     handles=row2,
+    #     loc='upper center',
+    #     bbox_to_anchor=(0.5, 0.95),  # adjust horizontal offset here
+    #     ncol=2,
+    #     frameon=False,
+    #     fontsize=14
+    # )
 
-    # Create second row of legend (centered manually)
-    fig.legend(
-        handles=row2,
-        loc='upper center',
-        bbox_to_anchor=(0.5, 0.91),  # adjust horizontal offset here
-        ncol=4,
-        frameon=False,
-        fontsize='small'
-    )
+    # # Create second row of legend (centered manually)
+    # fig.legend(
+    #     handles=row1,
+    #     loc='upper center',
+    #     bbox_to_anchor=(0.505, 0.87),
+    #     ncol=3,
+    #     frameon=False,
+    #     fontsize=14
+    # )
+
 
     plt.tight_layout()
-    fig.subplots_adjust(top=0.86)  # move plot area down to make room for fig.legend
+    # fig.subplots_adjust(top=0.8)  # move plot area down to make room for fig.legend
 
     dir_ablation = f"{DIR_ABLATION}_{flatten_env(env)}"
     savedir = f"{dir_ablation if ablation_plot else DIR}{'' if ablation_plot else '/'+env}/plots/policy_loss_curves" 
@@ -688,7 +736,7 @@ def plot_reward_comparison(data):
     total_steps = data['total_steps']
 
     for ptype in ['GNN', 'GNN_K']:
-        fig = plt.figure(figsize=(9,6))
+        fig = plt.figure(figsize=(9,7))
 
         for mod in mods:
             curve = data[ptype][mod]['reward_curve']
@@ -697,27 +745,29 @@ def plot_reward_comparison(data):
             std_low, std_high = data[ptype][mod]['std_curve']
             baseline_std_low, baseline_std_high = data['logits'][mod]['std_curve']
 
-            plt.plot(x, smooth(curve, s=1), color=colors_dict[mod], label=f"{clean_policy_type(ptype)} ({clean_mod(mod)})")
-            # plt.fill_between(x, std_low, std_high, color = colors_dict[mod], alpha = 0.2, edgecolor = 'none')
+            plt.plot(x, smooth(curve, s=1), color=colors_dict[mod], label=f"{clean_policy_type(ptype)} ({clean_mod(mod)})", linewidth=2)
+            plt.fill_between(x, smooth(std_low, 1), smooth(std_high, 1), color = colors_dict[mod], alpha = 0.1, edgecolor = 'none')
 
-            plt.plot(x, smooth(baseline_curve, s=1), color = colors_dict[mod], label=f"Baseline ({clean_mod(mod)})", linestyle='--')
+            plt.plot(x, smooth(baseline_curve, s=1), color = colors_dict[mod], label=f"Baseline ({clean_mod(mod)})", linestyle='--', linewidth=2.5)
             # plt.fill_between(x, baseline_std_low, baseline_std_high, color = colors_dict[mod], alpha = 0.2, edgecolor = 'none')
 
-        plt.ylim(top=C['max_reward'] + C['top_offset'], bottom=C['min_reward'])
+        plt.ylim(top=C['max_reward'] + C['top_offset'], bottom=C['min_reward'] + C['bot_offset'])
         plt.xlim(left=C['left_offset'], right=total_steps+C['right_offset'])
-        plt.xticks(range(0, total_steps+1, C['xtick_interval']))
-        plt.yticks(range(C['min_reward'],C['max_reward']+1, C['ytick_interval']))
+        plt.xticks(range(0, total_steps+1, C['xtick_interval']), fontsize=14)
+        plt.yticks(range(C['min_reward'],C['max_reward']+1, C['ytick_interval']), fontsize=14)
 
-        plt.suptitle(f'Rewards: {env_title[env]} ({clean_policy_type(ptype)})', fontweight='bold')
-        plt.xlabel('Steps')
-        plt.ylabel('Reward')
-        plt.legend(title=None, loc='upper center', bbox_to_anchor=(0.5, 1.10),
-            ncol=4, frameon=False, fontsize='small')
+        plt.suptitle(f'Rewards: {env_title[env]} ({clean_policy_type(ptype)})', fontweight='bold', fontsize=18)
+        plt.xlabel('Steps', fontsize=16)
+        plt.ylabel('Reward', fontsize=16)
+        fig.legend(title=None, loc='upper center', bbox_to_anchor=(0.5, 0.95),
+            ncol=2, frameon=False, fontsize=14)
+
         plt.tight_layout()
+        plt.subplots_adjust(top=0.75)
 
 
         savedir = f"{DIR}/{env}/plots/reward_curves"
-        name = f"all_rewards_{ptype}"
+        name = f"all_rewards_{flatten_env(env)}_{ptype}"
         save_and_close(fig, savedir, name)
 
     # for mod in mods:
@@ -733,7 +783,7 @@ def plot_reward_comparison(data):
     #             plt.plot(x, curve, color=colors_dict[ptype], label=clean_policy_type(ptype))
     #             plt.fill_between(x, std_low, std_high, color = colors_dict[ptype], alpha = 0.2, edgecolor = 'none')
 
-    #     plt.ylim(top=C['max_reward'] + C['top_offset'], bottom=C['min_reward'])
+    #     plt.ylim(top=C['max_reward'] + C['top_offset'], bottom=C['min_reward'] + C['bot_offset'])
     #     plt.xlim(left=C['left_offset'], right=total_steps+C['right_offset'])
     #     plt.xticks(range(0, total_steps+1, C['xtick_interval']))
     #     plt.yticks(range(C['min_reward'],C['max_reward']+1, C['ytick_interval']))
@@ -764,7 +814,7 @@ def plot_aux_reward_comparison(data):
     baseline_mean_reward_curve = np.mean(baseline_stacked_reward_curves, axis=0)
 
 
-    fig = plt.figure(figsize=(9,6))
+    fig = plt.figure(figsize=(9,7))
 
     for i,mod in enumerate(ablation_mods):
 
@@ -774,23 +824,23 @@ def plot_aux_reward_comparison(data):
         curve = data[mod]['reward_curve']
         std_low, std_high = data[mod]['std_curve']
         if curve is not None:
-            plt.plot(x, smooth(curve, 1), color=colors[i], label=clean_mod(mod))
-            plt.fill_between(x, smooth(std_low, 1), smooth(std_high, 1), color = colors[i], alpha = 0.2, edgecolor = 'none')
+            plt.plot(x, smooth(curve, 0.75), color=colors[i], label=clean_mod(mod), linewidth=2)
+            plt.fill_between(x, smooth(std_low, 0.75), smooth(std_high, 0.75), color = colors[i], alpha = 0.1, edgecolor = 'none')
 
-    plt.plot(x, smooth(baseline_mean_reward_curve, 1), color='black', label='Logits (Baseline)', linestyle='--')
+    plt.plot(x, smooth(baseline_mean_reward_curve, 0.75), color='black', label='Logits (Baseline)', linestyle='--', linewidth=2)
 
-    plt.ylim(top=C['max_reward'] + C['top_offset'], bottom=C['min_reward'])
+    plt.ylim(top=C['max_reward'] + C['top_offset'], bottom=C['min_reward'] + C['bot_offset'])
     plt.xlim(left=C['left_offset'], right=total_steps+C['right_offset'])
-    plt.xticks(range(0, total_steps+1, C['xtick_interval']))
-    plt.yticks(range(C['min_reward'],C['max_reward']+1, C['ytick_interval']))
+    plt.xticks(range(0, total_steps+1, C['xtick_interval']), fontsize=14)
+    plt.yticks(range(C['min_reward'],C['max_reward']+1, C['ytick_interval']), fontsize=14)
 
-    plt.suptitle(f'Rewards: {env_title[get_env(env)]} | CMU-Net (Auxiliary Loss Ablation)', fontweight='bold')
-    plt.xlabel('Steps')
-    plt.ylabel('Reward')
+    plt.suptitle(f'Rewards: {env_title[get_env(env)]} | CMU-Net', fontweight='bold', fontsize=18)
+    plt.xlabel('Steps', fontsize=16)
+    plt.ylabel('Reward', fontsize=16)
     fig.legend(title=None, loc='upper center', bbox_to_anchor=(0.5, 0.95),
-        ncol=3, frameon=False, fontsize='small')
+        ncol=3, frameon=False, fontsize=14)
     plt.tight_layout()
-    fig.subplots_adjust(top=0.84)
+    fig.subplots_adjust(top=0.78)
 
     dir_ablation = f"{DIR_ABLATION}_{env}"
     savedir = f"{dir_ablation}/plots/reward_curves"
@@ -806,8 +856,10 @@ def main_plots():
     for environment in environments:
 
         print(environment)
+        flat_env = flatten_env(environment)
         
-        metrics[flatten_env(environment)] = {}
+        if flat_env != 'pong':
+            metrics[flat_env] = {}
 
         # Normal Plots:
         load_from = f"{DIR}/{environment}/pickle/"
@@ -836,28 +888,30 @@ def main_plots():
             },
         }
 
-        metrics[flatten_env(environment)]['logits'] = {}
-        metrics[flatten_env(environment)]['GNN'] = {}
-        metrics[flatten_env(environment)]['GNN_K'] = {}
+        if flat_env != 'pong':
+            metrics[flat_env]['logits'] = {}
+            metrics[flat_env]['GNN'] = {}
+            metrics[flat_env]['GNN_K'] = {}
 
         for dirname in dirnames:
 
             env, ptype, mod, x, total_steps, mean_reward_curve, std_fill_y1, std_fill_y2, stacked_reward_curves = plot_individual_reward_curves(dirname, load_from)
             
-            data['x'] = x
-            data['total_steps'] = total_steps
-            data[ptype][mod]['reward_curve'] = mean_reward_curve
-            data[ptype][mod]['std_curve'] = (std_fill_y1, std_fill_y2)
+            if flat_env != 'pong':
+                data['x'] = x
+                data['total_steps'] = total_steps
+                data[ptype][mod]['reward_curve'] = mean_reward_curve
+                data[ptype][mod]['std_curve'] = (std_fill_y1, std_fill_y2)
 
 
-            if flatten_env(env) == 'cartpole':
-                threshold = 475.0
-            elif flatten_env(env) == 'pendulum':
-                threshold = -200.0
+                if flatten_env(env) == 'cartpole':
+                    threshold = 475.0
+                elif flatten_env(env) == 'pendulum':
+                    threshold = -200.0
 
-            metrics[flatten_env(env)][ptype][mod] = compute_metrics(stacked_reward_curves, threshold=threshold)
-            
-        plot_reward_comparison(data)
+                metrics[flatten_env(env)][ptype][mod] = compute_metrics(stacked_reward_curves, threshold=threshold)
+        if flat_env != 'pong':    
+            plot_reward_comparison(data)
 
     return metrics
 
@@ -1141,9 +1195,9 @@ def main():
     acrobot_metrics = ablation_plots('acrobot')
     pong_metrics = ablation_plots('pong')
 
-    quantitative_analysis_CMU(pendulum_metrics, 'pendulum')
-    quantitative_analysis_CMU(acrobot_metrics, 'acrobot')
-    quantitative_analysis_CMU(pong_metrics, 'pong')
+    # quantitative_analysis_CMU(pendulum_metrics, 'pendulum')
+    # quantitative_analysis_CMU(acrobot_metrics, 'acrobot')
+    # quantitative_analysis_CMU(pong_metrics, 'pong')
 
 
 
