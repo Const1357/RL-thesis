@@ -114,7 +114,7 @@ pip install -r requirements.txt
 ### Running Experiments
 To train the agents, use the runner scripts in the `scripts/` directory. Configuration files are stored in `configs/`.
 
-To visualize the **Intent-Confidence Evolution** (as described in the thesis), please visit the interactive viewer hosted [here](https://const1357.github.io/RL-thesis/visuals/Intent-Confidence_visualization.html)
+To visualize the **Intent-Confidence Evolution** (as described in the thesis), please visit the [interactive viewer](https://const1357.github.io/RL-thesis/visuals/Intent-Confidence_visualization.html).
 
 ---
 
