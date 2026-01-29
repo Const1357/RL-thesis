@@ -121,13 +121,12 @@ To visualize the **Intent-Confidence Evolution** (as described in the thesis), p
 ## 📝 Citation
 If you use this code or methods in your research, please cite the thesis:
 ```BibTeX
-@thesis{Theofylaktou2025Structured,
-  title={Structured Policy Parametrization for Interpretable Behavioral Control in Discrete Action Reinforcement Learning},
-  author={Theofylaktou, Constantinos},
-  school={National and Kapodistrian University of Athens},
-  year={2025},
-  month={August},
-  type={BSc Thesis}
+@misc{uoadl:5302958,
+    BIBTEX_ENTRY = "misc",
+    year = "2025",
+    school = "School of Science, Department of Informatics and Telecommunications, National and Kapodistrian University of Athens",
+    author = "Theofylaktou Constantinos",
+    title = "Structured Policy Parametrization for Interpretable Behavioral Control in Discrete Action Reinforcement Learning"
 }
 ```
 ### Acknowledgments
