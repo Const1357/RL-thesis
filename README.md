@@ -1,6 +1,6 @@
 # Structured Policy Parametrization for Interpretable Behavioral Control in Discrete Action Reinforcement Learning
 
-![Overview](resources/overview.png)
+![Overview](visuals/overview.png)
 
 This repository contains the implementation and experimental results of the BSc Thesis **"Structured Policy Parametrization for Interpretable Behavioral Control in Discrete Action Reinforcement Learning"** (University of Athens, 2025).
 
@@ -12,7 +12,7 @@ Modern deep RL often parametrizes discrete policies as a softmax over predicted 
 
 ### Architecture
 
-![Architecture Diagram](resources/ArchitectureDiagram.png)
+![Architecture Diagram](visuals/ArchitectureDiagram.png)
 
 The CMU-Net processes the state $s$ through a shared backbone and splits into two heads:
 1.  **Preference Head:** Predicts raw, unnormalized preference scores (Intent).
@@ -31,17 +31,17 @@ SoftTrust introduces three auxiliary loss functions that operate on the interpre
 #### 1. Preference-Confidence Alignment
 Encourages consistency between the rankings of the Intent and Confidence vectors. It ensures that high-confidence values are allocated to high-intent actions without enforcing a strict magnitude correspondence.
 
-![Alignment Loss](resources/AlignmentLoss.png)
+![Alignment Loss](visuals/AlignmentLoss.png)
 
 #### 2. Intent-Confidence Penalty
 This objective views confidence as a limited resource. It penalizes the model for assigning high confidence to low-intent actions, preventing the confidence vector from collapsing into a uniform distribution.
 
-![Intent-Confidence Penalty Surface](resources/IC_penalty.png)
+![Intent-Confidence Penalty Surface](visuals/IC_penalty.png)
 
 #### 3. Intent Margin
 Promotes decisive behavior by maximizing the separation between the highest predicted intent and the second-highest intent. This reduces "dithering" between similarly valued choices.
 
-![Intent Margin Loss](resources/MarginLoss.png)
+![Intent Margin Loss](visuals/MarginLoss.png)
 
 ---
 
@@ -51,7 +51,7 @@ We evaluated SoftTrust using **Proximal Policy Optimization (PPO)** across varie
 
 ### Performance Overview
 
-![Reward Curves](resources/SoftTrustCurves.png)
+![Reward Curves](visuals/SoftTrustCurves.png)
 
 *Figure: Reward curves comparing SoftTrust configurations against the Logits Baseline.*
 
